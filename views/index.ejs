@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>賽馬綜合走勢分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f4f9; }
         h1 { color: #333; text-align: center; }
@@ -70,6 +71,57 @@
             </table>
         </div>
     <% }); %>
+
+    <!-- 落飛異動分析 -->
+    <div class="card">
+        <div class="card-title">📉 落飛/回飛 異動分析 (Big Movers)</div>
+        <div style="height: 400px; position: relative;">
+            <canvas id="moversChart"></canvas>
+        </div>
+        <table style="margin-top: 20px;">
+            <thead>
+                <tr>
+                    <th>異動類別</th>
+                    <th>數量</th>
+                    <th>勝出 (Win%)</th>
+                    <th>入圍 (Place%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% moverStats.forEach(function(m) { %>
+                <tr>
+                    <td><%= m.category %></td>
+                    <td><%= m.count %></td>
+                    <td><%= m.winCount %> (<%= m.winRate.toFixed(1) %>%)</td>
+                    <td><%= m.placeCount %> (<%= m.placeRate.toFixed(1) %>%)</td>
+                </tr>
+                <% }); %>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- 連贏位結構分析 -->
+    <div class="card">
+        <div class="card-title">🧩 連贏位結構分析 (Quinella Composition)</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>結構組合 (第一名 + 第二名)</th>
+                    <th>出現次數</th>
+                    <th>出現率 (%)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <% quinellaStats.forEach(function(q) { %>
+                <tr>
+                    <td><%= q.category %></td>
+                    <td><%= q.count %></td>
+                    <td><%= q.rate.toFixed(1) %> %</td>
+                </tr>
+                <% }); %>
+            </tbody>
+        </table>
+    </div>
 
     <script>
         // 準備 Chart.js 數據
