@@ -6,7 +6,7 @@ import { HitRateStats, TimePoint, MoverStats, QuinellaStats } from './types';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
 
 // 設定 EJS 為視圖引擎
 app.set('view engine', 'ejs');
