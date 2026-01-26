@@ -6,10 +6,29 @@ import { HitRateStats, TimePoint, MoverStats, QuinellaStats } from './types';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const VERSION = "1.1.0";
 
 // 設定 EJS 為視圖引擎
 app.set('view engine', 'ejs');
-app.set('views', path.join(__dirname, '../views'));
+// 使用 process.cwd() 確保路徑正確，防止 __dirname 在不同環境下的差異
+app.set('views', path.join(process.cwd(), 'views'));
+
+app.get('/debug', (req, res) => {
+    const fs = require('fs');
+    try {
+        const viewsPath = app.get('views');
+        const viewsFiles = fs.readdirSync(viewsPath);
+        res.json({
+            version: VERSION,
+            cwd: process.cwd(),
+            __dirname: __dirname,
+            viewsPath: viewsPath,
+            viewsFiles: viewsFiles
+        });
+    } catch (e: any) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
 
 app.get('/', async (req, res) => {
     try {
