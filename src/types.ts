@@ -35,3 +35,18 @@ export interface HitRateStats {
         }
     }
 }
+
+export interface MoverStats {
+    category: string; // e.g., "大幅落飛 (>4名)", "微幅落飛 (2-4名)"
+    count: number;    // 該類別的馬匹總數
+    winCount: number; // 跑出第1名次數
+    winRate: number;  // 勝出率
+    placeCount: number; // 跑入前3名次數 (注意：這裡指實際賽果前3名，非前6)
+    placeRate: number;  // 入圍率
+}
+
+export interface QuinellaStats {
+    category: string; // e.g., "1-2名 + 1-2名"
+    count: number;    // 出現次數
+    rate: number;     // 出現機率
+}

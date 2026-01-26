@@ -1,8 +1,8 @@
 import express from 'express';
 import * as path from 'path';
 import { fetchRaceTrends } from './apiClient';
-import { analyzeHitRates } from './trendAnalysis';
-import { HitRateStats, TimePoint } from './types';
+import { analyzeHitRates, analyzeBigMovers, analyzeQuinellaComposition } from './trendAnalysis';
+import { HitRateStats, TimePoint, MoverStats, QuinellaStats } from './types';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,10 +29,16 @@ app.get('/', async (req, res) => {
             analysisResults.push({ timePoint: tp, stats });
         });
 
-        // 3. 渲染頁面
+        // 3. 新增分析：落飛異動 & Q結構
+        const moverStats: MoverStats[] = analyzeBigMovers(races);
+        const quinellaStats: QuinellaStats[] = analyzeQuinellaComposition(races);
+
+        // 4. 渲染頁面
         res.render('index', { 
             racesCount: races.length,
             results: analysisResults,
+            moverStats,
+            quinellaStats,
             lastUpdated: new Date().toLocaleString()
         });
 

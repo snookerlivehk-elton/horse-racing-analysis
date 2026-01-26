@@ -99,3 +99,133 @@ export function findConsistentHorses(race: RaceData): { rank1: number[], rank2: 
         rank3: isConsistentRank3 && potentialRank3 ? [potentialRank3] : []
     };
 }
+
+/**
+ * 分析「落飛/回飛」異動
+ * 比較 30' 與 0' 的排名變化
+ */
+import { MoverStats, QuinellaStats } from './types';
+
+export function analyzeBigMovers(races: RaceData[]): MoverStats[] {
+    // 定義類別容器
+    const categories = {
+        "big_drop": { name: "大幅落飛 (排名提升 >4)", count: 0, win: 0, place: 0 }, // 30'排名 - 0'排名 > 4
+        "drop": { name: "落飛 (排名提升 2-4)", count: 0, win: 0, place: 0 },      // 30'排名 - 0'排名 介於 2-4
+        "stable": { name: "平穩 (排名變動 ±1)", count: 0, win: 0, place: 0 },    // 絕對值 <= 1
+        "rise": { name: "回飛 (排名下跌 2-4)", count: 0, win: 0, place: 0 },      // 0'排名 - 30'排名 介於 2-4
+        "big_rise": { name: "大幅回飛 (排名下跌 >4)", count: 0, win: 0, place: 0 } // 0'排名 - 30'排名 > 4
+    };
+
+    races.forEach(race => {
+        const startTrend = race.trends["30'"];
+        const endTrend = race.trends["0'"];
+        
+        if (!startTrend || !endTrend) return;
+
+        // 建立馬匹排名 Map
+        const startRankMap = new Map<number, number>(); // horse -> rank index
+        startTrend.rankings.forEach((h, i) => startRankMap.set(h, i));
+
+        const endRankMap = new Map<number, number>();
+        endTrend.rankings.forEach((h, i) => endRankMap.set(h, i));
+
+        const resultPos = race.result.positions;
+        const winner = resultPos[0];
+        const top3 = resultPos.slice(0, 3); // 傳統三甲
+
+        // 遍歷所有在 0' 出現的馬匹 (假設馬匹名單一致)
+        endRankMap.forEach((endRank, horse) => {
+            const startRank = startRankMap.get(horse);
+            if (startRank === undefined) return;
+
+            // Rank Index 越小排名越高 (0 is 1st). 
+            // Improvement = StartIndex - EndIndex. (e.g., Was 10th(idx 9), Now 2nd(idx 1) => 9 - 1 = 8 > 0)
+            const diff = startRank - endRank;
+
+            let catKey = "stable";
+            if (diff > 4) catKey = "big_drop";
+            else if (diff >= 2) catKey = "drop";
+            else if (diff <= -5) catKey = "big_rise";
+            else if (diff <= -2) catKey = "rise";
+
+            // Update stats
+            const cat = categories[catKey as keyof typeof categories];
+            cat.count++;
+            if (horse === winner) cat.win++;
+            if (top3.includes(horse)) cat.place++;
+        });
+    });
+
+    // 轉換為陣列並計算百分比
+    return Object.values(categories).map(c => ({
+        category: c.name,
+        count: c.count,
+        winCount: c.win,
+        winRate: c.count > 0 ? (c.win / c.count) * 100 : 0,
+        placeCount: c.place,
+        placeRate: c.count > 0 ? (c.place / c.count) * 100 : 0
+    }));
+}
+
+/**
+ * 分析連贏位 (Quinella) 結構
+ * 基於 0' (臨場) 排名分析 Q 的組成
+ */
+export function analyzeQuinellaComposition(races: RaceData[]): QuinellaStats[] {
+    const stats: Record<string, number> = {
+        "1-2 + 1-2": 0,    // 熱熱
+        "1-2 + 3-4": 0,    // 熱中
+        "1-2 + 5+": 0,     // 熱冷
+        "3-4 + 3-4": 0,    // 中中
+        "3-4 + 5+": 0,     // 中冷
+        "5+ + 5+": 0       // 冷冷
+    };
+
+    let validRaces = 0;
+
+    races.forEach(race => {
+        const trend = race.trends["0'"];
+        if (!trend) return;
+
+        const rankings = trend.rankings; // [Rank1Horse, Rank2Horse, ...]
+        const winner = race.result.positions[0];
+        const second = race.result.positions[1];
+
+        // 找出冠亞軍在 0' 時的排名索引
+        const winnerRankIdx = rankings.indexOf(winner);
+        const secondRankIdx = rankings.indexOf(second);
+
+        if (winnerRankIdx === -1 || secondRankIdx === -1) return;
+
+        validRaces++;
+
+        // Helper to categorize rank
+        const getCat = (idx: number) => {
+            if (idx <= 1) return 1; // Rank 1-2
+            if (idx <= 3) return 2; // Rank 3-4
+            return 3;               // Rank 5+
+        };
+
+        const wCat = getCat(winnerRankIdx);
+        const sCat = getCat(secondRankIdx);
+
+        // Sort to ensure "1-2 + 3-4" is same as "3-4 + 1-2"
+        const pair = [wCat, sCat].sort((a, b) => a - b);
+        
+        let key = "";
+        if (pair[0] === 1 && pair[1] === 1) key = "1-2 + 1-2";
+        else if (pair[0] === 1 && pair[1] === 2) key = "1-2 + 3-4";
+        else if (pair[0] === 1 && pair[1] === 3) key = "1-2 + 5+";
+        else if (pair[0] === 2 && pair[1] === 2) key = "3-4 + 3-4";
+        else if (pair[0] === 2 && pair[1] === 3) key = "3-4 + 5+";
+        else key = "5+ + 5+";
+
+        stats[key]++;
+    });
+
+    return Object.entries(stats).map(([key, count]) => ({
+        category: key,
+        count: count,
+        rate: validRaces > 0 ? (count / validRaces) * 100 : 0
+    }));
+}
