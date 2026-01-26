@@ -39,7 +39,8 @@ app.get('/', async (req, res) => {
             results: analysisResults,
             moverStats,
             quinellaStats,
-            lastUpdated: new Date().toLocaleString()
+            lastUpdated: new Date().toLocaleString(),
+            serverVersion: VERSION
         });
 
     } catch (error: any) {
