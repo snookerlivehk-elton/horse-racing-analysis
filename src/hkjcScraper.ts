@@ -91,6 +91,10 @@ async function scrapeAllRaces(date?: string): Promise<RaceInfo[]> {
             
             rows.each((_, tr) => {
                 const $tr = $(tr);
+
+                // Skip rows that contain nested tables (e.g. layout tables)
+                if ($tr.find('table').length > 0) return;
+
                 const link = $tr.find('a[href*="/zh-hk/local/information/horse?horseid="]').first();
                 const href = link.attr('href') || '';
                 const fullUrl = buildUrl(href);
