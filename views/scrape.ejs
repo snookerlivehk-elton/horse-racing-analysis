@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HKJC 馬匹往績爬蟲結果</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f4f9; }
+        h1 { color: #333; text-align: center; }
+        .meta-info { text-align: center; margin-bottom: 20px; color: #666; }
+        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
+        .card-title { font-size: 1.1em; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 8px; color: #2c3e50; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 8px; text-align: center; border-bottom: 1px solid #ddd; font-size: 0.9em; }
+        th { background-color: #f8f9fa; font-weight: 600; color: #555; }
+        tr:hover { background-color: #f5f5f5; }
+        .btn-bar { display: flex; justify-content: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .btn { padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9em; }
+        .btn-primary { background-color: #3498db; color: white; }
+        .btn-secondary { background-color: #2ecc71; color: white; }
+        .btn-link { background: none; color: #3498db; text-decoration: underline; padding: 0; }
+        .error { color: #c0392b; text-align: center; margin-bottom: 10px; }
+        .info { color: #16a085; text-align: center; margin-bottom: 10px; }
+        .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; background-color: #ecf0f1; font-size: 0.8em; margin-left: 6px; }
+        .table-wrapper { max-height: 500px; overflow: auto; border: 1px solid #eee; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🐎 HKJC 馬匹往績爬蟲結果</h1>
+    <div class="meta-info">
+        Server Version: <%= serverVersion %> |
+        最後爬取時間:
+        <% if (lastUpdated) { %>
+            <%= new Date(lastUpdated).toLocaleString() %>
+        <% } else { %>
+            尚未爬取
+        <% } %>
+    </div>
+
+    <% if (scrapeError) { %>
+        <div class="error">最近一次爬蟲錯誤: <%= scrapeError %></div>
+    <% } %>
+
+    <div class="btn-bar">
+        <form method="get" action="/scrape-data">
+            <button class="btn btn-primary" type="submit">重新爬取最新排位馬匹</button>
+        </form>
+        <button class="btn btn-secondary" type="button" onclick="downloadExcel()">一鍵生成 Excel 並下載</button>
+        <a href="/" class="btn-link">返回走勢分析首頁</a>
+    </div>
+
+    <div class="card">
+        <div class="card-title">
+            總覽
+        </div>
+        <% if (scrapeResult && scrapeResult.horses && scrapeResult.horses.length > 0) { %>
+            <div class="info">
+                本次共爬取 <strong><%= scrapeResult.horses.length %></strong> 匹馬的往績資料
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>馬匹編號 (Horse ID)</th>
+                        <th>馬名</th>
+                        <th>往績場次數</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% scrapeResult.horses.forEach(function(horse) { %>
+                        <tr>
+                            <td><%= horse.horseId %></td>
+                            <td><%= horse.horseName %></td>
+                            <td><%= horse.rows.length %></td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        <% } else { %>
+            <div class="info">目前沒有可顯示的爬蟲結果，請先執行「重新爬取最新排位馬匹」。</div>
+        <% } %>
+    </div>
+
+    <% if (scrapeResult && scrapeResult.horses && scrapeResult.horses.length > 0) { %>
+        <div class="card">
+            <div class="card-title">
+                部分樣本明細
+                <span class="tag">僅展示前 1 匹馬以供快速檢視</span>
+            </div>
+            <% const sampleHorse = scrapeResult.horses[0]; %>
+            <div class="info">
+                馬匹: <strong><%= sampleHorse.horseName %></strong> (<%= sampleHorse.horseId %>)，
+                往績場次: <strong><%= sampleHorse.rows.length %></strong>
+            </div>
+            <% if (sampleHorse.rows.length > 0) { %>
+                <div class="table-wrapper">
+                    <table>
+                        <thead>
+                            <tr>
+                                <% 
+                                const maxColumns = sampleHorse.rows.reduce(function(max, row) {
+                                    return Math.max(max, row.columns.length);
+                                }, 0);
+                                const headers = [
+                                    "場次", "名次", "日期", "跑道/賽道", "路程", 
+                                    "場地", "班次", "檔位", "評分", "練馬師", 
+                                    "騎師", "頭馬距離", "獨贏賠率", "實際負磅", 
+                                    "沿途走位", "完成時間", "馬匹體重", "配備"
+                                ];
+                                for (var i = 0; i < maxColumns; i++) { 
+                            %>
+                                <th>
+                                    <% if (i < headers.length) { %>
+                                        <%= headers[i] %>
+                                    <% } else { %>
+                                        Col <%= i + 1 %>
+                                    <% } %>
+                                </th>
+                            <% } %>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% sampleHorse.rows.forEach(function(row) { %>
+                                <tr>
+                                    <% for (var i = 0; i < maxColumns; i++) { %>
+                                        <td><%= row.columns[i] || '' %></td>
+                                    <% } %>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+            <% } else { %>
+                <div class="info">此馬目前沒有可顯示的往績紀錄。</div>
+            <% } %>
+        </div>
+    <% } %>
+
+    <script>
+        function downloadExcel() {
+            window.location.href = '/scrape-data/excel';
+        }
+    </script>
+</body>
+</html>
+
