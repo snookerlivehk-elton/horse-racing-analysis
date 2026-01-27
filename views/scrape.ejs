@@ -3,141 +3,333 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HKJC 馬匹往績爬蟲結果</title>
+    <title>HKJC 排位與往績 (Racecard & Performance)</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f4f9; }
-        h1 { color: #333; text-align: center; }
-        .meta-info { text-align: center; margin-bottom: 20px; color: #666; }
-        .card { background: white; padding: 20px; margin-bottom: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.08); }
-        .card-title { font-size: 1.1em; font-weight: bold; margin-bottom: 10px; border-bottom: 2px solid #eee; padding-bottom: 8px; color: #2c3e50; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 8px; text-align: center; border-bottom: 1px solid #ddd; font-size: 0.9em; }
-        th { background-color: #f8f9fa; font-weight: 600; color: #555; }
-        tr:hover { background-color: #f5f5f5; }
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-gold: #fbbf24;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --border-color: #404040;
+            --table-header-bg: #333333;
+            --table-row-even: #252525;
+            --table-row-odd: #2a2a2a;
+        }
+
+        body { 
+            font-family: 'Roboto', 'Segoe UI', Tahoma, sans-serif; 
+            padding: 0; 
+            background-color: var(--bg-dark); 
+            color: var(--text-main);
+            margin: 0; 
+            min-height: 100vh;
+        }
+
+        h1 { 
+            color: var(--accent-gold); 
+            text-align: center; 
+            margin: 20px 0 10px; 
+            font-size: 1.5em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .meta-info { 
+            text-align: center; 
+            margin-bottom: 20px; 
+            color: var(--text-muted); 
+            font-size: 0.85em; 
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 15px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 10px;
+        }
+
         .btn-bar { display: flex; justify-content: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
-        .btn { padding: 8px 16px; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9em; }
-        .btn-primary { background-color: #3498db; color: white; }
-        .btn-secondary { background-color: #2ecc71; color: white; }
-        .btn-link { background: none; color: #3498db; text-decoration: underline; padding: 0; }
-        .error { color: #c0392b; text-align: center; margin-bottom: 10px; }
-        .info { color: #16a085; text-align: center; margin-bottom: 10px; }
-        .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; background-color: #ecf0f1; font-size: 0.8em; margin-left: 6px; }
-        .table-wrapper { max-height: 500px; overflow: auto; border: 1px solid #eee; border-radius: 4px; }
+        .btn { 
+            padding: 8px 20px; 
+            border-radius: 4px; 
+            border: none; 
+            cursor: pointer; 
+            font-size: 0.9em; 
+            font-weight: 600; 
+            transition: all 0.2s; 
+            text-transform: uppercase;
+        }
+        .btn-primary { background-color: var(--accent-blue); color: white; }
+        .btn-primary:hover { background-color: #2563eb; }
+        .btn-secondary { background-color: var(--accent-green); color: white; }
+        .btn-secondary:hover { background-color: #059669; }
+        .btn-link { background: none; color: var(--accent-blue); text-decoration: none; padding: 10px; font-size: 0.9em; }
+        .btn-link:hover { text-decoration: underline; color: #60a5fa; }
+
+        .error { color: #f87171; background: rgba(220, 38, 38, 0.1); padding: 10px; border: 1px solid #dc2626; border-radius: 4px; text-align: center; margin-bottom: 15px; }
+        
+        /* Tabs */
+        .tabs { 
+            display: flex; 
+            flex-wrap: nowrap; 
+            overflow-x: auto; 
+            gap: 2px; 
+            margin-bottom: 15px; 
+            padding-bottom: 5px; 
+            background: var(--bg-panel);
+            padding: 5px;
+            border-radius: 4px;
+        }
+        .tab-btn { 
+            padding: 8px 16px; 
+            background: transparent; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            color: var(--text-muted); 
+            white-space: nowrap;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .tab-btn:hover { background: rgba(255,255,255,0.05); color: white; }
+        .tab-btn.active { 
+            background: var(--accent-gold); 
+            color: #000; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .tab-content { display: none; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Racecard Table */
+        .race-card { 
+            background: var(--bg-panel); 
+            border-radius: 8px; 
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
+            overflow: hidden; 
+            margin-bottom: 20px; 
+            border: 1px solid var(--border-color);
+        }
+        .race-header { 
+            background: linear-gradient(180deg, #404040 0%, #333 100%); 
+            color: var(--accent-gold); 
+            padding: 12px 15px; 
+            font-weight: bold; 
+            font-size: 1.1em; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px 8px; text-align: center; border-bottom: 1px solid var(--border-color); font-size: 0.9em; }
+        th { 
+            background-color: var(--table-header-bg); 
+            font-weight: 600; 
+            color: var(--text-muted); 
+            text-transform: uppercase;
+            font-size: 0.8em;
+            letter-spacing: 0.5px;
+        }
+        tr { background-color: var(--table-row-odd); }
+        tr:nth-child(even) { background-color: var(--table-row-even); }
+        tr:hover { background-color: #383838; }
+        
+        .horse-no { 
+            font-weight: bold; 
+            color: var(--accent-gold); 
+            font-family: 'Roboto Mono', monospace;
+            font-size: 1.1em;
+        }
+        .horse-name { font-weight: bold; color: white; text-align: left; font-size: 1em; }
+        .badge { 
+            display: inline-block; 
+            padding: 1px 5px; 
+            font-size: 0.7em; 
+            border-radius: 2px; 
+            background: #404040; 
+            color: #aaa; 
+            margin-top: 2px;
+            font-family: monospace;
+        }
+        
+        .details-row { display: none; background-color: #222 !important; }
+        .details-row.show { display: table-row; }
+        .details-cell { padding: 15px; text-align: left; border-top: 1px solid var(--accent-blue); }
+        .toggle-details { 
+            cursor: pointer; 
+            color: var(--accent-blue); 
+            font-size: 0.85em; 
+            padding: 2px 8px;
+            border: 1px solid var(--accent-blue);
+            border-radius: 10px;
+            transition: all 0.2s;
+        }
+        .toggle-details:hover { background: var(--accent-blue); color: white; }
+
+        .perf-table { width: 100%; margin-top: 10px; border: 1px solid var(--border-color); background: #1a1a1a; }
+        .perf-table th { background: #333; color: #ccc; border-bottom: 1px solid #444; }
+        .perf-table td { color: #bbb; border-bottom: 1px solid #333; }
+        .perf-table tr:hover { background: #252525; }
+
+        /* Mobile adjustments */
+        @media (max-width: 600px) {
+            th, td { padding: 8px 4px; font-size: 0.8em; }
+            .badge { display: block; width: fit-content; }
+            .btn-bar { flex-direction: column; }
+            .btn { width: 100%; }
+        }
     </style>
 </head>
 <body>
-    <h1>🐎 HKJC 馬匹往績爬蟲結果</h1>
+    <h1>🐎 HKJC 排位與往績 (Racecard & Performance)</h1>
     <div class="meta-info">
         Server Version: <%= serverVersion %> |
-        最後爬取時間:
-        <% if (lastUpdated) { %>
-            <%= new Date(lastUpdated).toLocaleString() %>
-        <% } else { %>
-            尚未爬取
-        <% } %>
+        最後更新: <%= lastUpdated ? new Date(lastUpdated).toLocaleString() : '尚未爬取' %>
     </div>
 
     <% if (scrapeError) { %>
-        <div class="error">最近一次爬蟲錯誤: <%= scrapeError %></div>
+        <div class="error">錯誤: <%= scrapeError %></div>
     <% } %>
 
     <div class="btn-bar">
         <form method="get" action="/scrape-data">
-            <button class="btn btn-primary" type="submit">重新爬取最新排位馬匹</button>
+            <button class="btn btn-primary" type="submit">🔄 重新爬取最新排位</button>
         </form>
-        <button class="btn btn-secondary" type="button" onclick="downloadExcel()">一鍵生成 Excel 並下載</button>
-        <a href="/" class="btn-link">返回走勢分析首頁</a>
+        <button class="btn btn-secondary" type="button" onclick="downloadExcel()">📥 一鍵生成 Excel</button>
+        <a href="/" class="btn-link">🏠 返回首頁</a>
     </div>
 
-    <div class="card">
-        <div class="card-title">
-            總覽
+    <% if (scrapeResult && scrapeResult.races && scrapeResult.races.length > 0) { %>
+        
+        <!-- Race Tabs -->
+        <div class="tabs">
+            <% scrapeResult.races.forEach(function(race, index) { %>
+                <div class="tab-btn <%= index === 0 ? 'active' : '' %>" onclick="switchTab(<%= index %>)">
+                    第 <%= race.raceNumber %> 場
+                </div>
+            <% }); %>
         </div>
-        <% if (scrapeResult && scrapeResult.horses && scrapeResult.horses.length > 0) { %>
-            <div class="info">
-                本次共爬取 <strong><%= scrapeResult.horses.length %></strong> 匹馬的往績資料
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>馬匹編號 (Horse ID)</th>
-                        <th>馬名</th>
-                        <th>往績場次數</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% scrapeResult.horses.forEach(function(horse) { %>
-                        <tr>
-                            <td><%= horse.horseId %></td>
-                            <td><%= horse.horseName %></td>
-                            <td><%= horse.rows.length %></td>
-                        </tr>
-                    <% }); %>
-                </tbody>
-            </table>
-        <% } else { %>
-            <div class="info">目前沒有可顯示的爬蟲結果，請先執行「重新爬取最新排位馬匹」。</div>
-        <% } %>
-    </div>
 
-    <% if (scrapeResult && scrapeResult.horses && scrapeResult.horses.length > 0) { %>
-        <div class="card">
-            <div class="card-title">
-                部分樣本明細
-                <span class="tag">僅展示前 1 匹馬以供快速檢視</span>
-            </div>
-            <% const sampleHorse = scrapeResult.horses[0]; %>
-            <div class="info">
-                馬匹: <strong><%= sampleHorse.horseName %></strong> (<%= sampleHorse.horseId %>)，
-                往績場次: <strong><%= sampleHorse.rows.length %></strong>
-            </div>
-            <% if (sampleHorse.rows.length > 0) { %>
-                <div class="table-wrapper">
+        <!-- Race Contents -->
+        <% scrapeResult.races.forEach(function(race, index) { %>
+            <div id="race-<%= index %>" class="tab-content <%= index === 0 ? 'active' : '' %>">
+                <div class="race-card">
+                    <div class="race-header">
+                        <span>第 <%= race.raceNumber %> 場排位表</span>
+                        <span style="font-size: 0.8em; font-weight: normal;">共 <%= race.horses.length %> 匹</span>
+                    </div>
                     <table>
                         <thead>
                             <tr>
-                                <% 
-                                const maxColumns = sampleHorse.rows.reduce(function(max, row) {
-                                    return Math.max(max, row.columns.length);
-                                }, 0);
-                                const headers = [
-                                    "場次", "名次", "日期", "跑道/賽道", "路程", 
-                                    "場地", "班次", "檔位", "評分", "練馬師", 
-                                    "騎師", "頭馬距離", "獨贏賠率", "實際負磅", 
-                                    "沿途走位", "完成時間", "馬匹體重", "配備"
-                                ];
-                                for (var i = 0; i < maxColumns; i++) { 
-                            %>
-                                <th>
-                                    <% if (i < headers.length) { %>
-                                        <%= headers[i] %>
-                                    <% } else { %>
-                                        Col <%= i + 1 %>
-                                    <% } %>
-                                </th>
-                            <% } %>
+                                <th width="50">馬號</th>
+                                <th style="text-align: left;">馬名 (編號)</th>
+                                <th>騎師</th>
+                                <th>練馬師</th>
+                                <th>檔位</th>
+                                <th>負磅</th>
+                                <th>評分</th>
+                                <th>往績</th>
                             </tr>
                         </thead>
                         <tbody>
-                            <% sampleHorse.rows.forEach(function(row) { %>
+                            <% race.horses.forEach(function(horse, hIndex) { %>
                                 <tr>
-                                    <% for (var i = 0; i < maxColumns; i++) { %>
-                                        <td><%= row.columns[i] || '' %></td>
-                                    <% } %>
+                                    <td class="horse-no"><%= horse.number %></td>
+                                    <td style="text-align: left;">
+                                        <div class="horse-name"><%= horse.name %></div>
+                                        <div class="badge"><%= horse.horseId %></div>
+                                    </td>
+                                    <td><%= horse.jockey %></td>
+                                    <td><%= horse.trainer %></td>
+                                    <td><%= horse.draw %></td>
+                                    <td><%= horse.weight %></td>
+                                    <td><%= horse.rating %></td>
+                                    <td>
+                                        <% if (horse.performance && horse.performance.rows.length > 0) { %>
+                                            <span class="toggle-details" onclick="toggleDetails('details-<%= index %>-<%= hIndex %>')">
+                                                查看 (<%= horse.performance.rows.length %>場)
+                                            </span>
+                                        <% } else { %>
+                                            <span style="color: #ccc;">無紀錄</span>
+                                        <% } %>
+                                    </td>
                                 </tr>
+                                <!-- Performance Details Row -->
+                                <% if (horse.performance && horse.performance.rows.length > 0) { %>
+                                    <tr id="details-<%= index %>-<%= hIndex %>" class="details-row">
+                                        <td colspan="8" class="details-cell">
+                                            <strong><%= horse.name %> 近績紀錄:</strong>
+                                            <table class="perf-table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>場次</th><th>名次</th><th>日期</th><th>路程</th><th>場地</th>
+                                                        <th>班次</th><th>騎師</th><th>評分</th><th>獨贏</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <% horse.performance.rows.slice(0, 6).forEach(function(row) { %>
+                                                        <tr>
+                                                            <!-- Mapping roughly based on standard HKJC scrape columns -->
+                                                            <td><%= row.columns[0] || '-' %></td>
+                                                            <td><%= row.columns[1] || '-' %></td>
+                                                            <td><%= row.columns[2] || '-' %></td>
+                                                            <td><%= row.columns[4] || '-' %></td>
+                                                            <td><%= row.columns[5] || '-' %></td>
+                                                            <td><%= row.columns[6] || '-' %></td>
+                                                            <td><%= row.columns[10] || '-' %></td>
+                                                            <td><%= row.columns[8] || '-' %></td>
+                                                            <td><%= row.columns[12] || '-' %></td>
+                                                        </tr>
+                                                    <% }); %>
+                                                </tbody>
+                                            </table>
+                                        </td>
+                                    </tr>
+                                <% } %>
                             <% }); %>
                         </tbody>
                     </table>
                 </div>
-            <% } else { %>
-                <div class="info">此馬目前沒有可顯示的往績紀錄。</div>
-            <% } %>
+            </div>
+        <% }); %>
+
+    <% } else { %>
+        <div class="card" style="text-align: center; padding: 40px;">
+            <p style="color: #666;">目前沒有資料，請點擊「重新爬取」按鈕開始。</p>
         </div>
     <% } %>
 
     <script>
         function downloadExcel() {
             window.location.href = '/scrape-data/excel';
+        }
+
+        function switchTab(index) {
+            // Hide all contents
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            // Remove active class from all tabs
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            // Show selected
+            document.getElementById('race-' + index).classList.add('active');
+            // Highlight tab
+            document.querySelectorAll('.tab-btn')[index].classList.add('active');
+        }
+
+        function toggleDetails(id) {
+            const row = document.getElementById(id);
+            if (row.style.display === 'table-row') {
+                row.style.display = 'none';
+            } else {
+                row.style.display = 'table-row';
+            }
         }
     </script>
 </body>
