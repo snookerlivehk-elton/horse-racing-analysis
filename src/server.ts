@@ -9,7 +9,7 @@ import { saveScrapeResultToDb } from './services/dbService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = "1.4.0"; // Bump version for DB support
+const VERSION = "1.5.0"; // Bump version for UI update and Nav links
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;

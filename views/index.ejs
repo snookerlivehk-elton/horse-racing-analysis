@@ -32,6 +32,27 @@
         h1 { color: var(--accent-gold); text-align: center; margin-bottom: 10px; text-transform: uppercase; }
         .meta-info { text-align: center; margin-bottom: 20px; color: var(--text-muted); border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
         
+        .nav-bar {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .nav-btn {
+            background-color: var(--accent-gold);
+            color: #000;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .nav-btn:hover {
+            opacity: 0.8;
+        }
+
         .card { 
             background: var(--bg-panel); 
             padding: 20px; 
@@ -66,6 +87,11 @@
     <h1>🐎 賽馬綜合走勢分析報告 (v1.1)</h1>
     <div class="meta-info">
         分析場次總數: <strong><%= racesCount %></strong> | 最後更新: <%= lastUpdated %> | Server Version: <%= serverVersion %>
+    </div>
+
+    <div class="nav-bar">
+        <a href="/scrape-data" class="nav-btn">📊 查看馬匹詳細數據</a>
+        <a href="/analysis" class="nav-btn" style="background-color: var(--accent-blue); color: white;">📈 走勢圖表</a>
     </div>
 
     <% results.forEach(function(item) { %>
