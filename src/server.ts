@@ -5,10 +5,11 @@ import { fetchRaceTrends } from './apiClient';
 import { analyzeHitRates, analyzeBigMovers, analyzeQuinellaComposition } from './trendAnalysis';
 import { HitRateStats, TimePoint, MoverStats, QuinellaStats } from './types';
 import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS } from './hkjcScraper';
+import { saveScrapeResultToDb } from './services/dbService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = "1.3.0";
+const VERSION = "1.4.0"; // Bump version for DB support
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
@@ -37,11 +38,26 @@ app.get('/debug', (req, res) => {
 
 app.get('/api/scrape-race-data', async (_req, res) => {
     try {
+        console.log('Starting scrape...');
         const result = await scrapeTodayRacecard();
         lastScrapeResult = result;
         lastScrapeError = null;
-        res.json(result);
+
+        // Save to DB asynchronously (don't block response too long, or block if needed)
+        // Let's await it to show DB status in response
+        console.log('Saving to database...');
+        const dbResult = await saveScrapeResultToDb(result);
+        console.log(`Saved ${dbResult.savedCount} horses to DB.`);
+
+        res.json({
+            ...result,
+            dbStatus: {
+                saved: dbResult.savedCount,
+                errors: dbResult.errors
+            }
+        });
     } catch (e: any) {
+        console.error('Scrape error:', e);
         const message = e?.message || 'Unknown error';
         lastScrapeError = message;
         res.status(500).json({ error: message });

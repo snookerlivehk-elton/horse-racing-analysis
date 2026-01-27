@@ -1,0 +1,51 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Horse {
+  id           String             @id @default(uuid())
+  hkjcId       String             @unique
+  name         String
+  performances RacePerformance[]
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model RacePerformance {
+  id              String   @id @default(uuid())
+  horseId         String
+  horse           Horse    @relation(fields: [horseId], references: [id])
+  
+  // Scraped Fields based on HKJC Headers
+  raceIndex       String?  // 場次
+  place           String?  // 名次
+  raceDate        String?  // 日期 (kept as String to preserve original format e.g. "17/12/25")
+  course          String?  // 跑道/賽道
+  distance        String?  // 路程
+  venue           String?  // 場地
+  class           String?  // 班次
+  draw            String?  // 檔位
+  rating          String?  // 評分
+  trainer         String?  // 練馬師
+  jockey          String?  // 騎師
+  lbw             String?  // 頭馬距離
+  odds            String?  // 獨贏賠率
+  actualWeight    String?  // 實際負磅
+  runningPosition String?  // 沿途走位
+  finishTime      String?  // 完成時間
+  horseWeight     String?  // 馬匹體重
+  gear            String?  // 配備
+
+  createdAt       DateTime @default(now())
+
+  @@index([horseId])
+  @@index([raceDate])
+}
