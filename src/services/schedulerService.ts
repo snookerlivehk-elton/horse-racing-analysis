@@ -2,6 +2,8 @@
 import * as cheerio from 'cheerio';
 // import fetch from 'node-fetch'; // Native fetch in Node 18+
 import { fetchOddsForAllRaces } from './oddsService';
+import { scrapeTodayRacecard } from '../hkjcScraper';
+import { updateAllHorseProfiles } from './profileService';
 
 interface RaceFixture {
     date: string; // YYYY-MM-DD
@@ -10,6 +12,7 @@ interface RaceFixture {
 
 let cachedFixtures: RaceFixture[] = [];
 let lastFixtureUpdate = 0;
+let lastProfileUpdateDate = '';
 
 const FIXTURE_URL = 'https://racing.hkjc.com/zh-hk/local/information/fixture';
 
@@ -90,11 +93,37 @@ export function startScheduler() {
         const raceDay = cachedFixtures.find(f => f.date === today);
         
         if (raceDay) {
-            console.log(`Today (${today}) is a race day at ${raceDay.venue}! Fetching odds...`);
+            console.log(`Today (${today}) is a race day at ${raceDay.venue}!`);
+            
+            // 1. Fetch Odds
             try {
+                console.log('Fetching odds...');
                 await fetchOddsForAllRaces(today, raceDay.venue);
             } catch (e) {
                 console.error('Error in scheduled odds fetch:', e);
+            }
+
+            // 2. Update Horse Profiles (Once per day)
+            if (lastProfileUpdateDate !== today) {
+                console.log(`First run of the day (${today}). Updating horse profiles...`);
+                try {
+                    // Fetch racecard to get horses
+                    const result = await scrapeTodayRacecard(today);
+                    if (result && result.races) {
+                        const allHorses = result.races.flatMap(r => r.horses);
+                        // Run in background (don't await strictly if we want to return from this loop, 
+                        // but since it's an interval, awaiting is fine)
+                        updateAllHorseProfiles(allHorses).then(() => {
+                            console.log('Daily profile update finished.');
+                        }).catch(e => {
+                            console.error('Daily profile update failed:', e);
+                        });
+                        
+                        lastProfileUpdateDate = today;
+                    }
+                } catch (e) {
+                    console.error('Error fetching racecard for profile update:', e);
+                }
             }
         } else {
             // Optional: Log heartbeat

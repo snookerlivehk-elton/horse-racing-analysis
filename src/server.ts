@@ -5,16 +5,17 @@ import { fetchRaceTrends } from './apiClient';
 import { analyzeHitRates, analyzeBigMovers, analyzeQuinellaComposition } from './trendAnalysis';
 import { HitRateStats, TimePoint, MoverStats, QuinellaStats } from './types';
 import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo, scrapeHorseProfile } from './hkjcScraper';
-import { saveScrapeResultToDb } from './services/dbService';
+import { saveScrapeResultToDb, updateHorseProfileInDb, getHorseProfileFromDb } from './services/dbService';
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
+import { updateAllHorseProfiles } from './services/profileService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Start Scheduler
 startScheduler();
-const VERSION = "1.6.1"; // Fix: Resolved TS build error with bestHorse type
+const VERSION = "1.6.3"; // Added Profile Service
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
@@ -84,6 +85,10 @@ app.get('/api/scrape-race-data', async (req, res) => {
         console.log('Saving to database...');
         const dbResult = await saveScrapeResultToDb(result);
         console.log(`Saved ${dbResult.savedCount} horses to DB.`);
+
+        // Trigger background profile update
+        const allHorses = result.races.flatMap(r => r.horses);
+        updateAllHorseProfiles(allHorses).catch(err => console.error('Background profile update error:', err));
 
         res.json({
             ...result,
@@ -309,11 +314,22 @@ app.get('/horse/:horseId', async (req, res) => {
     }
 
     try {
-        const profile = await scrapeHorseProfile(horseId);
+        // 1. Try to get from DB first
+        let profile = await getHorseProfileFromDb(horseId);
+        
+        // 2. If not in DB or missing key info (e.g. no origin), scrape it
+        if (!profile || !profile.origin) {
+            console.log(`Profile for ${horseId} missing or incomplete in DB. Scraping live...`);
+            profile = await scrapeHorseProfile(horseId);
+            // Save to DB for next time
+            await updateHorseProfileInDb(profile);
+        }
+
         res.render('horse', {
             horseId: horseId,
             horseName: profile.name,
-            records: profile.records
+            records: profile.records,
+            profile: profile
         });
     } catch (error) {
         console.error('Error fetching horse profile:', error);

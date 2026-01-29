@@ -70,6 +70,22 @@ model Horse {
   id           String             @id @default(uuid())
   hkjcId       String             @unique
   name         String
+  
+  // Profile Details
+  origin       String?
+  age          String?
+  color        String?
+  sex          String?
+  importType   String?
+  seasonStakes String?
+  totalStakes  String?
+  record       String?
+  sire         String?
+  dam          String?
+  damSire      String?
+  owner        String?
+  trainer      String? // Current trainer
+  
   performances RacePerformance[]
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt

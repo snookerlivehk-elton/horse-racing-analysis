@@ -111,8 +111,33 @@ export interface HorseProfileRecord {
     odds: string;
 }
 
-export async function scrapeHorseProfile(horseId: string): Promise<{ name: string, records: HorseProfileRecord[] }> {
-    const url = `https://racing.hkjc.com/zh-hk/local/information/horse?horseId=${horseId}`;
+export interface HorseProfileExtended {
+    name: string;
+    id: string;
+    origin?: string;
+    age?: string;
+    color?: string;
+    sex?: string;
+    importType?: string;
+    seasonStakes?: string;
+    totalStakes?: string;
+    record?: string; // W-Q-P-Total
+    sire?: string;
+    dam?: string;
+    damSire?: string;
+    owner?: string;
+    trainer?: string;
+    records: HorseProfileRecord[];
+}
+
+export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileExtended> {
+    // Clean ID if needed (e.g. HK_2023_J405 -> J405)
+    let queryId = horseId;
+    if (horseId.includes('_')) {
+        queryId = horseId.split('_').pop() || horseId;
+    }
+
+    const url = `https://racing.hkjc.com/zh-hk/local/information/horse?horseId=${queryId}`;
     console.log(`Scraping horse profile: ${url}`);
     
     try {
@@ -126,6 +151,45 @@ export async function scrapeHorseProfile(horseId: string): Promise<{ name: strin
         // Or try to find it in the profile table
         const profileName = $('.profile_table td').first().text().trim();
         if (profileName) name = profileName;
+
+        // Extract Profile Details
+        const profileInfo: any = {};
+        $('td').each((i, el) => {
+            const text = $(el).text().trim();
+            const nextEl = $(el).next();
+            const val = nextEl.text().trim();
+
+            if (text.includes('出生地') && text.includes('馬齡')) {
+                // "澳洲 / 3"
+                const parts = val.split('/');
+                profileInfo.origin = parts[0]?.trim();
+                profileInfo.age = parts[1]?.trim();
+            } else if (text.includes('毛色') && text.includes('性別')) {
+                // "棗 / 閹"
+                const parts = val.split('/');
+                profileInfo.color = parts[0]?.trim();
+                profileInfo.sex = parts[1]?.trim();
+            } else if (text === '進口類別') {
+                profileInfo.importType = val;
+            } else if (text === '季內獎金') {
+                profileInfo.seasonStakes = val;
+            } else if (text === '總獎金') {
+                profileInfo.totalStakes = val;
+            } else if (text === '冠-亞-季-總出賽次數') {
+                profileInfo.record = val;
+            } else if (text === '父系') {
+                profileInfo.sire = val;
+            } else if (text === '母系') {
+                profileInfo.dam = val;
+            } else if (text === '外祖父') {
+                profileInfo.damSire = val;
+            } else if (text === '馬主') {
+                profileInfo.owner = val;
+            } else if (text === '練馬師') {
+                // Note: Trainer might be in the records table too, but this is current trainer
+                profileInfo.trainer = val;
+            }
+        });
 
         const records: HorseProfileRecord[] = [];
 
@@ -204,7 +268,12 @@ export async function scrapeHorseProfile(horseId: string): Promise<{ name: strin
             });
         }
 
-        return { name, records };
+        return { 
+            name, 
+            id: horseId,
+            ...profileInfo,
+            records 
+        };
 
     } catch (error) {
         console.error(`Error scraping horse profile for ${horseId}:`, error);

@@ -1,6 +1,106 @@
 
 import prisma from '../lib/prisma';
-import { ScrapeResult, HKJC_HEADERS } from '../hkjcScraper';
+import { ScrapeResult, HKJC_HEADERS, HorseProfileExtended, HorseProfileRecord } from '../hkjcScraper';
+
+export async function getHorseProfileFromDb(horseId: string): Promise<HorseProfileExtended | null> {
+    try {
+        const horse = await prisma.horse.findUnique({
+            where: { hkjcId: horseId },
+            include: {
+                performances: {
+                    orderBy: {
+                        createdAt: 'desc' // Ideally sort by date, but date is string "dd/mm/yy". createdAt is reliable for latest scrape order if inserted sequentially.
+                        // Or we can try to parse date later. For now, just return list.
+                    }
+                }
+            }
+        });
+
+        if (!horse) return null;
+
+        // Map performances to HorseProfileRecord
+        const records: HorseProfileRecord[] = horse.performances.map(p => ({
+            raceIndex: p.raceIndex || '',
+            rank: p.place || '',
+            date: p.raceDate || '',
+            distance: p.distance || '',
+            venue: p.venue || '',
+            class: p.class || '',
+            draw: p.draw || '',
+            rating: p.rating || '',
+            trainer: p.trainer || '',
+            jockey: p.jockey || '',
+            weight: p.actualWeight || '',
+            odds: p.odds || ''
+        }));
+
+        return {
+            id: horse.hkjcId,
+            name: horse.name,
+            origin: horse.origin || undefined,
+            age: horse.age || undefined,
+            color: horse.color || undefined,
+            sex: horse.sex || undefined,
+            importType: horse.importType || undefined,
+            seasonStakes: horse.seasonStakes || undefined,
+            totalStakes: horse.totalStakes || undefined,
+            record: horse.record || undefined,
+            sire: horse.sire || undefined,
+            dam: horse.dam || undefined,
+            damSire: horse.damSire || undefined,
+            owner: horse.owner || undefined,
+            trainer: horse.trainer || undefined,
+            records: records
+        };
+    } catch (error) {
+        console.error(`Error fetching profile from DB for ${horseId}:`, error);
+        return null;
+    }
+}
+
+export async function updateHorseProfileInDb(profile: HorseProfileExtended) {
+    try {
+        await prisma.horse.upsert({
+            where: { hkjcId: profile.id },
+            update: {
+                origin: profile.origin,
+                age: profile.age,
+                color: profile.color,
+                sex: profile.sex,
+                importType: profile.importType,
+                seasonStakes: profile.seasonStakes,
+                totalStakes: profile.totalStakes,
+                record: profile.record,
+                sire: profile.sire,
+                dam: profile.dam,
+                damSire: profile.damSire,
+                owner: profile.owner,
+                trainer: profile.trainer
+            },
+            create: {
+                hkjcId: profile.id,
+                name: profile.name,
+                origin: profile.origin,
+                age: profile.age,
+                color: profile.color,
+                sex: profile.sex,
+                importType: profile.importType,
+                seasonStakes: profile.seasonStakes,
+                totalStakes: profile.totalStakes,
+                record: profile.record,
+                sire: profile.sire,
+                dam: profile.dam,
+                damSire: profile.damSire,
+                owner: profile.owner,
+                trainer: profile.trainer
+            }
+        });
+        return true;
+    } catch (error) {
+        console.error(`Error updating profile for ${profile.name} (${profile.id}):`, error);
+        return false;
+    }
+}
 
 export async function saveScrapeResultToDb(result: ScrapeResult): Promise<{ savedCount: number, errors: string[] }> {
     let savedCount = 0;

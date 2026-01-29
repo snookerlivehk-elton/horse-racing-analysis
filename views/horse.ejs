@@ -130,6 +130,33 @@
             border-radius: 4px;
             min-width: 120px;
         }
+
+        .profile-info-panel {
+            background: var(--bg-panel);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        .profile-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px 25px;
+        }
+        .profile-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .profile-item .label {
+            color: var(--text-muted);
+            font-size: 0.85em;
+        }
+        .profile-item .value {
+            color: var(--text-main);
+            font-size: 1em;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
@@ -143,6 +170,57 @@
                 <span>🔙</span> 返回排位表
             </a>
         </div>
+
+        <% if (locals.profile) { %>
+        <div class="profile-info-panel">
+            <div class="profile-grid">
+                <div class="profile-item">
+                    <span class="label">出生地 / 馬齡</span>
+                    <span class="value"><%= profile.origin || '-' %> / <%= profile.age || '-' %></span>
+                </div>
+                <div class="profile-item">
+                    <span class="label">毛色 / 性別</span>
+                    <span class="value"><%= profile.color || '-' %> / <%= profile.sex || '-' %></span>
+                </div>
+                <div class="profile-item">
+                    <span class="label">進口類別</span>
+                    <span class="value"><%= profile.importType || '-' %></span>
+                </div>
+                <div class="profile-item">
+                    <span class="label">練馬師</span>
+                    <span class="value"><%= profile.trainer || '-' %></span>
+                </div>
+                <div class="profile-item">
+                    <span class="label">季內獎金</span>
+                    <span class="value"><%= profile.seasonStakes || '-' %></span>
+                </div>
+                <div class="profile-item">
+                    <span class="label">總獎金</span>
+                    <span class="value"><%= profile.totalStakes || '-' %></span>
+                </div>
+                <div class="profile-item">
+                    <span class="label">冠-亞-季-總出賽次數</span>
+                    <span class="value"><%= profile.record || '-' %></span>
+                </div>
+                <div class="profile-item">
+                    <span class="label">父系</span>
+                    <span class="value"><%= profile.sire || '-' %></span>
+                </div>
+                <div class="profile-item">
+                    <span class="label">母系</span>
+                    <span class="value"><%= profile.dam || '-' %></span>
+                </div>
+                <div class="profile-item">
+                    <span class="label">外祖父</span>
+                    <span class="value"><%= profile.damSire || '-' %></span>
+                </div>
+                <div class="profile-item" style="grid-column: 1 / -1;">
+                    <span class="label">馬主</span>
+                    <span class="value"><%= profile.owner || '-' %></span>
+                </div>
+            </div>
+        </div>
+        <% } %>
 
         <div class="filter-bar">
             <div class="filter-item">
