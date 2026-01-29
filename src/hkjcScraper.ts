@@ -212,7 +212,30 @@ export async function scrapeHorseProfile(horseId: string): Promise<{ name: strin
     }
 }
 
-async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceDate?: string }> {
+function formatJcStats(raw: string): string {
+    if (!raw) return '-';
+    // Remove all whitespace
+    const clean = raw.replace(/\s+/g, '');
+    
+    // Handle format like "12(2-3-1-0-6)" or "2-3-1-0-6"
+    // We want to extract the counts for 1st, 2nd, 3rd, 4th
+    
+    // Check for content inside parentheses first
+    const parenMatch = clean.match(/\(([\d-]+)\)/);
+    let target = parenMatch ? parenMatch[1] : clean;
+    
+    // Split by hyphen
+    const parts = target.split('-');
+    
+    // If we have at least 4 parts (Win-2nd-3rd-4th-...)
+    if (parts.length >= 4) {
+        return `(${parts[0]}-${parts[1]}-${parts[2]}-${parts[3]})`;
+    }
+    
+    return raw;
+}
+
+export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceDate: string }> {
     const races: RaceInfo[] = [];
     const maxRaces = 14; 
     let firstRaceFirstHorseId: string | null = null;
@@ -437,7 +460,7 @@ async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceD
                                 const horse = currentRaceHorses.find(h => h.name === horseName || horseName.includes(h.name));
                                 if (horse) {
                                     horse.stats = {
-                                        lifetime: cols[4],
+                                        lifetime: formatJcStats(cols[4]), // Apply formatting to Lifetime
                                         currentSeason: cols[5],
                                         thisClass: cols[6],
                                         thisDistance: cols[9],
@@ -474,7 +497,7 @@ async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceD
             break;
         }
     }
-    return { races, raceDate };
+    return { races, raceDate: raceDate || '' };
 }
 
 async function scrapeHorsePerformance(url: string, horseId: string, horseName: string): Promise<HorsePerformanceRecord> {
