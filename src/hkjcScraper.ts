@@ -296,6 +296,7 @@ function calculateStatsFromProfileRecords(records: HorseProfileRecord[]): string
     let seconds = 0;
     let thirds = 0;
     let fourths = 0;
+    let fifths = 0;
     let unplaced = 0;
 
     for (const record of records) {
@@ -316,11 +317,12 @@ function calculateStatsFromProfileRecords(records: HorseProfileRecord[]): string
             else if (rank === 2) seconds++;
             else if (rank === 3) thirds++;
             else if (rank === 4) fourths++;
+            else if (rank === 5) fifths++;
             else unplaced++;
         }
     }
 
-    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${unplaced})`;
+    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${fifths}-${unplaced})`;
 }
 
 function formatJcStats(raw: string): string {
@@ -354,6 +356,7 @@ function calculateStatsFromRecords(rows: HorsePerformanceRow[]): string {
     let seconds = 0;
     let thirds = 0;
     let fourths = 0;
+    let fifths = 0;
     let unplaced = 0;
 
     for (const row of rows) {
@@ -374,6 +377,7 @@ function calculateStatsFromRecords(rows: HorsePerformanceRow[]): string {
             else if (rank === 2) seconds++;
             else if (rank === 3) thirds++;
             else if (rank === 4) fourths++;
+            else if (rank === 5) fifths++;
             else unplaced++;
         } else {
             // Handle specific non-numeric ranks that count as runs
@@ -384,7 +388,7 @@ function calculateStatsFromRecords(rows: HorsePerformanceRow[]): string {
         }
     }
 
-    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${unplaced})`;
+    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${fifths}-${unplaced})`;
 }
 
 function calculateDetailedStats(
@@ -400,15 +404,15 @@ function calculateDetailedStats(
     }
 ): HorseStats {
     const stats = {
-        lifetime: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
-        currentSeason: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
-        thisClass: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
-        thisDistance: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
-        thisCourseDistance: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
-        jockeyPartnership: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
-        trackGood: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
-        trackYielding: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
-        trackSoft: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 }
+        lifetime: { runs: 0, w: 0, q: 0, p: 0, f: 0, fifth: 0, u: 0 },
+        currentSeason: { runs: 0, w: 0, q: 0, p: 0, f: 0, fifth: 0, u: 0 },
+        thisClass: { runs: 0, w: 0, q: 0, p: 0, f: 0, fifth: 0, u: 0 },
+        thisDistance: { runs: 0, w: 0, q: 0, p: 0, f: 0, fifth: 0, u: 0 },
+        thisCourseDistance: { runs: 0, w: 0, q: 0, p: 0, f: 0, fifth: 0, u: 0 },
+        jockeyPartnership: { runs: 0, w: 0, q: 0, p: 0, f: 0, fifth: 0, u: 0 },
+        trackGood: { runs: 0, w: 0, q: 0, p: 0, f: 0, fifth: 0, u: 0 },
+        trackYielding: { runs: 0, w: 0, q: 0, p: 0, f: 0, fifth: 0, u: 0 },
+        trackSoft: { runs: 0, w: 0, q: 0, p: 0, f: 0, fifth: 0, u: 0 }
     };
 
     const addStat = (bucket: keyof typeof stats, rank: number) => {
@@ -417,6 +421,7 @@ function calculateDetailedStats(
         else if (rank === 2) stats[bucket].q++;
         else if (rank === 3) stats[bucket].p++;
         else if (rank === 4) stats[bucket].f++;
+        else if (rank === 5) stats[bucket].fifth++;
         else stats[bucket].u++;
     };
     
@@ -522,8 +527,8 @@ function calculateDetailedStats(
         if (goingStr.includes('軟') || goingStr.includes('爛')) addStat('trackSoft', rank);
     }
 
-    const fmt = (s: { runs: number, w: number, q: number, p: number, f: number, u: number }) => 
-        `${s.runs}(${s.w}-${s.q}-${s.p}-${s.f}-${s.u})`;
+    const fmt = (s: { runs: number, w: number, q: number, p: number, f: number, fifth: number, u: number }) => 
+        `${s.runs}(${s.w}-${s.q}-${s.p}-${s.f}-${s.fifth}-${s.u})`;
 
     return {
         lifetime: fmt(stats.lifetime),
