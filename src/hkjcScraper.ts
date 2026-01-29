@@ -30,6 +30,12 @@ export interface RaceHorseInfo {
 export interface RaceInfo {
     raceNumber: number;
     horses: RaceHorseInfo[];
+    class?: string;
+    distance?: string;
+    venue?: string;
+    track?: string;
+    surface?: string;
+    conditions?: string; // Full string like "Class 4 - 1200M - Turf"
 }
 
 export interface ScrapeResult {
@@ -210,6 +216,52 @@ async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceD
             const html = await fetchHtml(url);
             const $ = cheerio.load(html);
             
+            // Extract Race Info (Class, Distance, Venue, etc.)
+            // Look for the race meeting info block, often in ".race_meeting" or similar, or just plain text at top
+            // Example: "第一場 - 第四班 - 1200米 - (60-40) - 草地 - "C+3" 賽道 - 12:45"
+            // Or "Race 1 - Class 4 - 1200M - Turf"
+            
+            let raceConditions = '';
+            // Try to find the specific info row. 
+            // In HKJC racecard, it's often in a specific div or table row above the horse table.
+            // Often inside <div class="rowDiv15"> or similar containing text like "Class"
+            
+            // Let's grab the text that contains the race info
+            // Strategy: Look for text containing "班" (Class) and "米" (Metres)
+            $('div, td, span').each((_, el) => {
+                const text = $(el).text().trim();
+                if (text.includes('班') && text.includes('米') && text.length < 100 && text.length > 10) {
+                    // This is a candidate for race conditions
+                    // Filter out super long text or unrelated
+                    if (!raceConditions || text.length > raceConditions.length) {
+                        raceConditions = text;
+                    }
+                }
+            });
+
+            // If found, parse it
+            let raceClass = '', distance = '', venue = '', track = '';
+            if (raceConditions) {
+                // Example: "第一場 - 第四班 - 1200米 - (60-40) - 草地 - "C+3" 賽道"
+                // Extract Class
+                const classMatch = raceConditions.match(/第.+班/);
+                if (classMatch) raceClass = classMatch[0];
+                
+                // Extract Distance
+                const distMatch = raceConditions.match(/\d+米/);
+                if (distMatch) distance = distMatch[0];
+                
+                // Extract Venue/Track
+                // Usually "草地" or "全天候跑道"
+                if (raceConditions.includes('草地')) venue = '草地';
+                else if (raceConditions.includes('全天候')) venue = '全天候跑道';
+                else if (raceConditions.includes('泥地')) venue = '泥地';
+                
+                // Track
+                const trackMatch = raceConditions.match(/"[^"]+" ?賽道/);
+                if (trackMatch) track = trackMatch[0];
+            }
+
             // Try to extract race date from the first successful page
             if (!raceDate) {
                 // Look for date pattern in body text or specific elements
@@ -334,9 +386,14 @@ async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceD
 
             races.push({
                 raceNumber: i,
-                horses: currentRaceHorses
+                horses: currentRaceHorses,
+                class: raceClass,
+                distance: distance,
+                venue: venue,
+                track: track,
+                conditions: raceConditions
             });
-            console.log(`Race ${i}: Found ${currentRaceHorses.length} horses.`);
+            console.log(`Race ${i}: Found ${currentRaceHorses.length} horses. Info: ${raceClass} ${distance}`);
 
         } catch (e: any) {
             console.error(`Error scraping Race ${i}:`, e.message);

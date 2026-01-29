@@ -225,8 +225,21 @@
             <div id="race-<%= index %>" class="tab-content <%= index === 0 ? 'active' : '' %>">
                 <div class="race-card">
                     <div class="race-header">
-                        <span>第 <%= race.raceNumber %> 場排位表</span>
-                        <span style="font-size: 0.8em; font-weight: normal;">共 <%= race.horses.length %> 匹</span>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;">
+                            <div>
+                                <span style="font-size: 1.2em; color: var(--accent-gold);">第 <%= race.raceNumber %> 場</span>
+                                <% if (race.conditions) { %>
+                                    <span style="margin-left: 10px; color: var(--text-main); font-weight: normal; font-size: 1em;">
+                                        <%= race.conditions %>
+                                    </span>
+                                <% } else if (race.class || race.distance) { %>
+                                    <span style="margin-left: 10px; color: var(--text-main); font-weight: normal; font-size: 1em;">
+                                        <%= [race.class, race.distance, race.venue, race.track].filter(Boolean).join(' - ') %>
+                                    </span>
+                                <% } %>
+                            </div>
+                            <span style="font-size: 0.9em; font-weight: normal; color: var(--text-muted);">共 <%= race.horses.length %> 匹</span>
+                        </div>
                     </div>
                     <table>
                         <thead>
