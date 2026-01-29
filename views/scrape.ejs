@@ -355,8 +355,8 @@
                                 <% race.horses.forEach(function(horse) { %>
                                     <tr>
                                         <td style="font-weight: bold;"><%= horse.name %></td>
-                                        <!-- Placeholder for Age/Sex if not scraped yet -->
-                                        <td style="color: #888;">-</td>
+                                        <!-- Age/Sex -->
+                                        <td><%= horse.age && horse.sex ? `${horse.age}/${horse.sex}` : (horse.age || horse.sex || '-') %></td>
                                         <td><%= horse.weight %></td>
                                         <td><%= horse.rating %></td>
                                         

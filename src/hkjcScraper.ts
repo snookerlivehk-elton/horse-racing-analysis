@@ -35,6 +35,8 @@ export interface RaceHorseInfo {
     draw: string;
     weight: string;
     rating: string;
+    age: string;
+    sex: string;
     url: string;
     performance?: HorsePerformanceRecord;
     stats?: HorseStats;
@@ -353,36 +355,49 @@ async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceD
 
                 if (nameIdx === -1) return;
 
-                // Relative positions based on standard HKJC card
-                // Horse No is usually first column with content, or check header.
-                // Let's assume nameIdx is roughly column 3 (0-based)
-                // If nameIdx is 3:
-                // 0: No, 1: Form, 2: Color, 3: Name
+                // Relative positions based on observed structure (2026-01-29)
+                // Name is pivot (0)
+                // No: -3
+                // Form: -2
+                // Color: -1
+                // Brand: +1
+                // Weight: +2
+                // Jockey: +3
+                // Draw: +5
+                // Trainer: +6
+                // Rating: +8
+                // Age: +13
+                // Sex: +15
                 
-                const number = $(tds[0]).text().trim();
-                const jockey = $(tds[nameIdx + 3]).text().trim(); // Rough guess
-                const trainer = $(tds[nameIdx + 6]).text().trim(); // Rough guess
-                const draw = $(tds[nameIdx + 5]).text().trim(); // Rough guess
-                const rating = $(tds[nameIdx + 7]).text().trim(); // Rough guess
-                const weight = $(tds[nameIdx + 2]).text().trim(); // Rough guess
+                const number = nameIdx >= 3 ? $(tds[nameIdx - 3]).text().trim() : $(tds[0]).text().trim();
+                const weight = $(tds[nameIdx + 2]).text().trim();
+                const jockey = $(tds[nameIdx + 3]).text().trim();
+                const draw = $(tds[nameIdx + 5]).text().trim();
+                const trainer = $(tds[nameIdx + 6]).text().trim();
+                const rating = $(tds[nameIdx + 8]).text().trim();
+                const age = $(tds[nameIdx + 13]).text().trim();
+                const sex = $(tds[nameIdx + 15]).text().trim();
 
-                // Refined Logic based on typical structure
-                // Use header if possible, but for now simple mapping
-                // Actually, let's just grab logical text
-                // Trainer usually has a link too
-                const trainerText = $tr.find('a[href*="trainerno="]').text().trim() || $(tds[9]).text().trim();
-                const jockeyText = $tr.find('a[href*="jockeycode="]').text().trim() || $(tds[6]).text().trim();
-                
+                // Trainer/Jockey might be inside links, but text() usually grabs it.
+                // Links usually just wrap the name.
+
                 currentRaceHorses.push({
                     number,
                     name,
                     horseId,
-                    jockey: jockeyText,
-                    trainer: trainerText,
-                    draw: $(tds[8]).text().trim(), // Standard Draw col
-                    rating: $(tds[10]).text().trim(), // Standard Rating col
-                    weight: $(tds[5]).text().trim(), // Standard Weight col
-                    url: fullUrl
+                    jockey,
+                    trainer,
+                    draw,
+                    rating, 
+                    weight,
+                    age,
+                    sex,
+                    url: fullUrl,
+                    performance: { 
+                        horseId: horseId,
+                        horseName: name,
+                        rows: [] 
+                    } // Will fill later
                 });
             });
 
