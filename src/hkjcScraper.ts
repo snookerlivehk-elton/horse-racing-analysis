@@ -75,6 +75,122 @@ async function fetchHtml(url: string): Promise<string> {
     return response.data;
 }
 
+export interface HorseProfileRecord {
+    raceIndex: string;
+    rank: string;
+    date: string;
+    distance: string;
+    venue: string;
+    class: string;
+    draw: string;
+    jockey: string;
+    trainer: string;
+    rating: string;
+    weight: string;
+    odds: string;
+}
+
+export async function scrapeHorseProfile(horseId: string): Promise<{ name: string, records: HorseProfileRecord[] }> {
+    const url = `https://racing.hkjc.com/zh-hk/local/information/horse?horseId=${horseId}`;
+    console.log(`Scraping horse profile: ${url}`);
+    
+    try {
+        const html = await fetchHtml(url);
+        const $ = cheerio.load(html);
+        
+        // Extract Horse Name
+        // Usually in a format like "馬匹資料 - 展雄威 (J405)" or header
+        // Looking for the main title or profile info
+        let name = $('title').text().split('-')[1]?.trim() || horseId;
+        // Or try to find it in the profile table
+        const profileName = $('.profile_table td').first().text().trim();
+        if (profileName) name = profileName;
+
+        const records: HorseProfileRecord[] = [];
+
+        // Find the performance table
+        // It usually contains "場次" in the header
+        $('table').each((i, table) => {
+            const headerText = $(table).find('tr').first().text();
+            if (headerText.includes('場次') && headerText.includes('名次')) {
+                // This is likely the performance table
+                $(table).find('tr').each((j, row) => {
+                    if (j === 0) return; // Skip header
+
+                    const cols = $(row).find('td').map((k, col) => $(col).text().trim()).get();
+                    if (cols.length > 10) {
+                        // Adjust index based on actual column layout
+                        // Typically: 0:場次, 1:名次, 2:日期, 3:場地/跑道/賽道, 4:路程, 5:場地狀況, 6:賽事班次, 7:檔位, 8:評分, 9:練馬師, 10:騎師, 11:頭馬距離, 12:負磅, 13:獨贏賠率
+                        // But let's be flexible and map based on standard expectation or check header
+                        // Let's assume standard layout for now based on recent scrapes or the snippet provided
+                        
+                        // From web reference snippet:
+                        // 場次 名次 日期 路程 場地 班次 騎師 評分 獨贏
+                        // But the full table usually has more.
+                        // Let's try to map commonly found indices.
+                        
+                        records.push({
+                            raceIndex: cols[0],
+                            rank: cols[1],
+                            date: cols[2],
+                            venue: cols[3], // This might be combined or separate
+                            distance: cols[4],
+                            class: cols[5],
+                            draw: cols[6], // 檔位 often here
+                            rating: cols[7], // or 8
+                            trainer: cols[8], // varying
+                            jockey: cols[9], // varying
+                            weight: cols[11], // varying
+                            odds: cols.length > 12 ? cols[cols.length - 1] : '-' // Odds usually last or near last
+                        } as any);
+                    }
+                });
+            }
+        });
+
+        // Refine parsing based on common HKJC layout if the above generic one is too loose
+        // Standard Columns often: 
+        // 0:場次 1:名次 2:日期 3:馬場/跑道/賽道 4:路程 5:場地狀況 6:賽事班次 7:檔位 8:評分 9:練馬師 10:騎師 11:頭馬距離 12:負磅 13:獨贏賠率
+        // Let's re-map if we found a table
+        if (records.length > 0) {
+            // Re-map with specific indices for better accuracy
+             $('table').each((i, table) => {
+                const $table = $(table);
+                if ($table.find('th, td').text().includes('場次') && $table.find('th, td').text().includes('名次')) {
+                    // clear generic parse
+                    records.length = 0; 
+                    
+                    $table.find('tr').each((j, row) => {
+                        const $cols = $(row).find('td');
+                        if ($cols.length < 10) return;
+
+                        records.push({
+                            raceIndex: $cols.eq(0).text().trim(),
+                            rank: $cols.eq(1).text().trim(),
+                            date: $cols.eq(2).text().trim(),
+                            venue: $cols.eq(3).text().trim(),
+                            distance: $cols.eq(4).text().trim(),
+                            class: $cols.eq(6).text().trim(), // Skip condition at 5
+                            draw: $cols.eq(7).text().trim(),
+                            rating: $cols.eq(8).text().trim(),
+                            trainer: $cols.eq(9).text().trim(),
+                            jockey: $cols.eq(10).text().trim(),
+                            weight: $cols.eq(12).text().trim(),
+                            odds: $cols.eq(13).text().trim()
+                        });
+                    });
+                }
+            });
+        }
+
+        return { name, records };
+
+    } catch (error) {
+        console.error(`Error scraping horse profile for ${horseId}:`, error);
+        throw error;
+    }
+}
+
 async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceDate?: string }> {
     const races: RaceInfo[] = [];
     const maxRaces = 14; 

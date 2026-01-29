@@ -246,7 +246,11 @@
                                 <tr>
                                     <td class="horse-no"><%= horse.number %></td>
                                     <td style="text-align: left;">
-                                        <div class="horse-name"><%= horse.name %></div>
+                                        <div class="horse-name">
+                                            <a href="/horse/<%= horse.horseId %>" style="color: var(--accent-blue); text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                                <%= horse.name %>
+                                            </a>
+                                        </div>
                                         <div class="badge"><%= horse.horseId %></div>
                                     </td>
                                     <td><%= horse.jockey %></td>

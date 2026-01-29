@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { fetchRaceTrends } from './apiClient';
 import { analyzeHitRates, analyzeBigMovers, analyzeQuinellaComposition } from './trendAnalysis';
 import { HitRateStats, TimePoint, MoverStats, QuinellaStats } from './types';
-import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo } from './hkjcScraper';
+import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo, scrapeHorseProfile } from './hkjcScraper';
 import { saveScrapeResultToDb } from './services/dbService';
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
@@ -300,6 +300,29 @@ app.get('/', async (req, res) => {
 app.get('/odds', (req, res) => {
     res.render('odds');
 });
+
+// New Route for Horse Profile
+app.get('/horse/:horseId', async (req, res) => {
+    const horseId = req.params.horseId;
+    if (!horseId) {
+        return res.status(400).send('Horse ID is required');
+    }
+
+    try {
+        const profile = await scrapeHorseProfile(horseId);
+        res.render('horse', {
+            horseId: horseId,
+            horseName: profile.name,
+            records: profile.records
+        });
+    } catch (error) {
+        console.error('Error fetching horse profile:', error);
+        res.status(500).send(`Error fetching profile for horse ${horseId}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+});
+
+// Serve static files
+app.use(express.static(path.join(__dirname, '../public')));
 
 app.listen(PORT, () => {
     console.log(`Server is running at http://localhost:${PORT}`);

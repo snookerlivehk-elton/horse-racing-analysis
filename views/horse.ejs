@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= horseName %> (<%= horseId %>) - 往績紀錄</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-gold: #fbbf24;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --border-color: #404040;
+            --table-header-bg: #333333;
+            --table-row-even: #252525;
+            --table-row-odd: #2a2a2a;
+        }
+
+        body { 
+            font-family: 'Roboto', 'Segoe UI', Tahoma, sans-serif; 
+            padding: 20px; 
+            background-color: var(--bg-dark); 
+            color: var(--text-main);
+            margin: 0; 
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 { 
+            color: var(--accent-gold); 
+            margin: 0;
+            font-size: 2em;
+        }
+
+        .btn-link {
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .btn-link:hover { text-decoration: underline; color: #60a5fa; }
+
+        .chart-container {
+            background: var(--bg-panel);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            height: 400px;
+        }
+
+        .table-container {
+            background: var(--bg-panel);
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.95em;
+        }
+
+        th {
+            background-color: var(--table-header-bg);
+            color: var(--accent-gold);
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-main);
+        }
+
+        tr:nth-child(even) { background-color: var(--table-row-even); }
+        tr:nth-child(odd) { background-color: var(--table-row-odd); }
+        tr:hover { background-color: #383838; }
+
+        .rank-1 { color: #fbbf24; font-weight: bold; }
+        .rank-2 { color: #9ca3af; font-weight: bold; }
+        .rank-3 { color: #b45309; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1><%= horseName %> (<%= horseId %>)</h1>
+                <p style="color: var(--text-muted); margin: 5px 0 0 0;">所有往績紀錄</p>
+            </div>
+            <a href="/scrape-data" class="btn-link">
+                <span>🔙</span> 返回排位表
+            </a>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="performanceChart"></canvas>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>場次</th>
+                        <th>名次</th>
+                        <th>日期</th>
+                        <th>路程</th>
+                        <th>場地</th>
+                        <th>班次</th>
+                        <th>騎師</th>
+                        <th>練馬師</th>
+                        <th>評分</th>
+                        <th>負磅</th>
+                        <th>獨贏</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <% records.forEach(function(record) { %>
+                        <tr>
+                            <td><%= record.raceIndex %></td>
+                            <td class="rank-<%= record.rank %>"><%= record.rank %></td>
+                            <td><%= record.date %></td>
+                            <td><%= record.distance %></td>
+                            <td><%= record.venue %></td>
+                            <td><%= record.class %></td>
+                            <td><%= record.jockey %></td>
+                            <td><%= record.trainer %></td>
+                            <td><%= record.rating %></td>
+                            <td><%= record.weight %></td>
+                            <td><%= record.odds %></td>
+                        </tr>
+                    <% }); %>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Prepare data for chart
+        const records = <%- JSON.stringify(records) %>;
+        // Reverse records for chronological order (oldest to newest)
+        const chronologicalRecords = [...records].reverse();
+
+        const labels = chronologicalRecords.map(r => r.date);
+        const ranks = chronologicalRecords.map(r => {
+            const rank = parseInt(r.rank);
+            return isNaN(rank) ? null : rank;
+        });
+
+        const ctx = document.getElementById('performanceChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: '名次 (Rank)',
+                    data: ranks,
+                    borderColor: '#fbbf24',
+                    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                    borderWidth: 2,
+                    pointBackgroundColor: '#fbbf24',
+                    pointRadius: 4,
+                    pointHoverRadius: 6,
+                    tension: 0.1,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        reverse: true, // Rank 1 is at top
+                        beginAtZero: false,
+                        min: 1,
+                        max: 14, // Assuming max 14 horses usually
+                        grid: {
+                            color: '#404040'
+                        },
+                        ticks: {
+                            stepSize: 1,
+                            color: '#a0a0a0'
+                        },
+                        title: {
+                            display: true,
+                            text: '名次',
+                            color: '#a0a0a0'
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: '#404040'
+                        },
+                        ticks: {
+                            color: '#a0a0a0'
+                        },
+                        title: {
+                            display: true,
+                            text: '日期',
+                            color: '#a0a0a0'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#e0e0e0'
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const index = context.dataIndex;
+                                const r = chronologicalRecords[index];
+                                return `名次: ${r.rank} (場次: ${r.raceIndex}, 距離: ${r.distance})`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
