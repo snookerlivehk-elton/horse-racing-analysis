@@ -9,7 +9,7 @@ import { saveScrapeResultToDb } from './services/dbService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = "1.5.0"; // Bump version for UI update and Nav links
+const VERSION = "1.5.1"; // Fix: Auto-detect latest race date
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
@@ -39,9 +39,9 @@ app.get('/debug', (req, res) => {
 app.get('/api/scrape-race-data', async (req, res) => {
     try {
         console.log('Starting scrape...');
-        // Default to 2026/01/28 as requested by user if not provided
-        const date = (req.query.date as string) || '2026/01/28';
-        console.log(`Scraping for date: ${date}`);
+        // If date is provided, use it. Otherwise undefined to fetch latest.
+        const date = req.query.date ? (req.query.date as string) : undefined;
+        console.log(`Scraping for date: ${date || 'Latest (Default)'}`);
         
         const result = await scrapeTodayRacecard(date);
         lastScrapeResult = result;
@@ -70,7 +70,7 @@ app.get('/api/scrape-race-data', async (req, res) => {
 
 app.get('/scrape-data', async (req, res) => {
     try {
-        const date = (req.query.date as string) || '2026/01/28';
+        const date = req.query.date ? (req.query.date as string) : undefined;
         
         // If we have a result but for a different date (not implemented yet) or no result
         // For now just re-scrape if query date differs? 
@@ -81,7 +81,7 @@ app.get('/scrape-data', async (req, res) => {
         
         if (!lastScrapeResult && !lastScrapeError) {
             try {
-                console.log(`Scraping for date (view): ${date}`);
+                console.log(`Scraping for date (view): ${date || 'Latest'}`);
                 const result = await scrapeTodayRacecard(date);
                 lastScrapeResult = result;
                 lastScrapeError = null;

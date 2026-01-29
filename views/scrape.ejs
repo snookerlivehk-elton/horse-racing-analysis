@@ -192,6 +192,9 @@
     <div class="meta-info">
         Server Version: <%= serverVersion %> |
         最後更新: <%= lastUpdated ? new Date(lastUpdated).toLocaleString() : '尚未爬取' %>
+        <% if (scrapeResult && scrapeResult.raceDate) { %>
+            | <span style="color: var(--accent-gold); font-weight: bold;">賽事日期: <%= scrapeResult.raceDate %></span>
+        <% } %>
     </div>
 
     <% if (scrapeError) { %>

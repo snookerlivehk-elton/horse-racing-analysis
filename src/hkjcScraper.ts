@@ -36,6 +36,7 @@ export interface ScrapeResult {
     races: RaceInfo[];
     horses: HorsePerformanceRecord[]; // Keep flat list for backward compatibility if needed, or just derive
     scrapedAt: string;
+    raceDate?: string;
 }
 
 const BASE_URL = 'https://racing.hkjc.com';
@@ -60,10 +61,11 @@ async function fetchHtml(url: string): Promise<string> {
     return response.data;
 }
 
-async function scrapeAllRaces(date?: string): Promise<RaceInfo[]> {
+async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceDate?: string }> {
     const races: RaceInfo[] = [];
     const maxRaces = 14; 
     let firstRaceFirstHorseId: string | null = null;
+    let raceDate: string | undefined;
 
     for (let i = 1; i <= maxRaces; i++) {
         let url = `${RACECARD_URL}?race_no=${i}`;
@@ -75,6 +77,18 @@ async function scrapeAllRaces(date?: string): Promise<RaceInfo[]> {
             const html = await fetchHtml(url);
             const $ = cheerio.load(html);
             
+            // Try to extract race date from the first successful page
+            if (!raceDate) {
+                // Look for date pattern in body text or specific elements
+                const bodyText = $('body').text();
+                // Pattern: YYYY年M月D日
+                const match = bodyText.match(/(\d{4}年\d{1,2}月\d{1,2}日)/);
+                if (match) {
+                    raceDate = match[1];
+                    console.log(`Detected Race Date: ${raceDate}`);
+                }
+            }
+
             // Check if we have a valid horse table
             const horseLinks = $('table a[href*="/zh-hk/local/information/horse?horseid="]');
             if (horseLinks.length === 0) {
@@ -188,7 +202,7 @@ async function scrapeAllRaces(date?: string): Promise<RaceInfo[]> {
             break;
         }
     }
-    return races;
+    return { races, raceDate };
 }
 
 async function scrapeHorsePerformance(url: string, horseId: string, horseName: string): Promise<HorsePerformanceRecord> {
@@ -234,7 +248,14 @@ async function scrapeHorsePerformance(url: string, horseId: string, horseName: s
 }
 
 export async function scrapeTodayRacecard(date?: string): Promise<ScrapeResult> {
-    const races = await scrapeAllRaces(date);
+    console.log(`Scraping racecard... (Date: ${date || 'Default'})`);
+    
+    // 1. Scrape all races from racecard
+    const { races, raceDate } = await scrapeAllRaces(date);
+    
+    if (races.length === 0) {
+        throw new Error('No races found');
+    }
 
     const uniqueHorses = new Map<string, { url: string; name: string; raceIndices: {r: number, h: number}[] }>();
 
@@ -274,7 +295,8 @@ export async function scrapeTodayRacecard(date?: string): Promise<ScrapeResult> 
     return {
         races: races,
         horses: records,
-        scrapedAt: new Date().toISOString()
+        scrapedAt: new Date().toISOString(),
+        raceDate
     };
 }
 
