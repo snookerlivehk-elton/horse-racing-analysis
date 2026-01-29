@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { fetchRaceTrends } from './apiClient';
 import { analyzeHitRates, analyzeBigMovers, analyzeQuinellaComposition } from './trendAnalysis';
 import { HitRateStats, TimePoint, MoverStats, QuinellaStats } from './types';
-import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS } from './hkjcScraper';
+import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo } from './hkjcScraper';
 import { saveScrapeResultToDb } from './services/dbService';
 
 const app = express();
@@ -117,7 +117,7 @@ app.get('/analysis', (req, res) => {
         lastScrapeResult.races.forEach(race => {
             // Find max rating in this race
             let maxRating = -1;
-            let bestHorse = null;
+            let bestHorse: RaceHorseInfo | null = null;
 
             race.horses.forEach(horse => {
                 // Jockey Count
