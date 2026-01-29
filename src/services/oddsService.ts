@@ -147,9 +147,15 @@ export async function fetchOddsForAllRaces(date: string, venueCode: string) {
 
 import prisma from '../lib/prisma';
 
-export async function saveOddsHistory(date: string, venue: string, raceNo: number, pools: any[]) {
-    if (!pools || pools.length === 0) return;
-
+export async function saveOddsDirectly(
+    date: string, 
+    venue: string, 
+    raceNo: number, 
+    winOdds: Record<string, number>, 
+    placeOdds: Record<string, number>, 
+    qinOdds: Record<string, number> = {}, 
+    qplOdds: Record<string, number> = {}
+) {
     try {
         const hkjcId = `${date}-${venue}-${raceNo}`;
         
@@ -165,7 +171,30 @@ export async function saveOddsHistory(date: string, venue: string, raceNo: numbe
             update: {} // No update needed if exists
         });
 
-        // 2. Extract Odds Data
+        // 2. Save History Snapshot
+        if (Object.keys(winOdds).length > 0) {
+            await prisma.oddsHistory.create({
+                data: {
+                    raceId: race.id,
+                    winOdds: winOdds as any,
+                    placeOdds: placeOdds as any,
+                    qinOdds: Object.keys(qinOdds).length > 0 ? (qinOdds as any) : undefined,
+                    qplOdds: Object.keys(qplOdds).length > 0 ? (qplOdds as any) : undefined,
+                }
+            });
+            console.log(`Saved pushed odds history for ${hkjcId}`);
+        }
+    } catch (e) {
+        console.error('Failed to save pushed odds history:', e);
+        throw e;
+    }
+}
+
+export async function saveOddsHistory(date: string, venue: string, raceNo: number, pools: any[]) {
+    if (!pools || pools.length === 0) return;
+
+    try {
+        // Extract Odds Data
         let winOdds: Record<string, number> = {};
         let placeOdds: Record<string, number> = {};
         let qinOdds: Record<string, number> = {};
@@ -186,20 +215,7 @@ export async function saveOddsHistory(date: string, venue: string, raceNo: numbe
             else if (pool.oddsType === 'QPL') qplOdds = oddsMap;
         });
 
-        // 3. Save History Snapshot
-        // Only save if we have at least WIN odds
-        if (Object.keys(winOdds).length > 0) {
-            await prisma.oddsHistory.create({
-                data: {
-                    raceId: race.id,
-                    winOdds: winOdds as any,
-                    placeOdds: placeOdds as any,
-                    qinOdds: Object.keys(qinOdds).length > 0 ? (qinOdds as any) : undefined,
-                    qplOdds: Object.keys(qplOdds).length > 0 ? (qplOdds as any) : undefined,
-                }
-            });
-            console.log(`Saved odds history for ${hkjcId}`);
-        }
+        await saveOddsDirectly(date, venue, raceNo, winOdds, placeOdds, qinOdds, qplOdds);
 
     } catch (e) {
         console.error('Failed to save odds history:', e);

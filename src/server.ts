@@ -13,6 +13,9 @@ import { updateAllHorseProfiles } from './services/profileService';
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.use(express.json()); // Enable JSON body parsing
+app.use(express.urlencoded({ extended: true }));
+
 // Start Scheduler
 startScheduler();
 const VERSION = "1.6.3"; // Added Profile Service
@@ -65,6 +68,39 @@ app.get('/api/odds', async (req, res) => {
         res.json(result);
     } catch (e: any) {
         console.error('Odds fetch error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/odds/push', async (req, res) => {
+    try {
+        // Support two formats:
+        // 1. Raw pools from GraphQL interception (Recommended)
+        // 2. Processed odds maps (Fallback)
+        const { date, venue, raceNo, pools, winOdds, placeOdds, qinOdds, qplOdds } = req.body;
+
+        if (!date || !venue || !raceNo) {
+            return res.status(400).json({ error: "Missing required fields: date, venue, raceNo" });
+        }
+
+        console.log(`Received pushed odds for ${date} ${venue} Race ${raceNo}`);
+        
+        const { saveOddsDirectly, saveOddsHistory } = require('./services/oddsService');
+
+        if (pools && Array.isArray(pools)) {
+            // Case 1: Raw pools
+            console.log(`Processing ${pools.length} raw pools...`);
+            await saveOddsHistory(date, venue, raceNo, pools);
+        } else if (winOdds) {
+            // Case 2: Processed maps
+            await saveOddsDirectly(date, venue, raceNo, winOdds, placeOdds, qinOdds, qplOdds);
+        } else {
+            return res.status(400).json({ error: "Missing odds data (pools or winOdds)" });
+        }
+
+        res.json({ success: true });
+    } catch (e: any) {
+        console.error('Odds push error:', e);
         res.status(500).json({ error: e.message });
     }
 });
