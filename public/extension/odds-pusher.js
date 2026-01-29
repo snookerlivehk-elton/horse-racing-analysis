@@ -2,7 +2,7 @@
 // ==UserScript==
 // @name         HKJC Odds Pusher
 // @namespace    http://tampermonkey.net/
-// @version      1.4
+// @version      1.5
 // @description  Intercepts HKJC GraphQL odds and pushes to local/remote server
 // @author       Trae Assistant
 // @match        *://bet.hkjc.com/*
@@ -19,44 +19,64 @@
 (function() {
     'use strict';
 
-    console.log('[HKJC Pusher v1.4] Script starting...');
+    console.log('[HKJC Pusher v1.5] Script starting... Logging ALL requests.');
 
     // CONFIGURATION
     const SERVER_URL = 'https://horse-racing-analysis-production.up.railway.app/api/odds/push';
-    const DEBUG_LOG = true; // Set to true to see all HKJC related requests in console
-
+    
     // VISUAL INDICATOR
     function ensureIndicator() {
         if (document.getElementById('hkjc-odds-pusher-indicator')) return;
         if (!document.body) return;
 
-        const indicator = document.createElement('div');
-        indicator.id = 'hkjc-odds-pusher-indicator';
-        indicator.style.cssText = 'position:fixed; bottom:10px; right:10px; padding:8px 12px; background:rgba(0,100,0,0.9); color:white; z-index:2147483647; border-radius:8px; font-size:14px; font-weight:bold; box-shadow:0 0 10px rgba(0,0,0,0.5); pointer-events:none; font-family:sans-serif; border: 2px solid #0f0;';
-        indicator.innerText = '🟢 Odds Pusher: Ready (v1.4)';
-        document.body.appendChild(indicator);
+        const container = document.createElement('div');
+        container.id = 'hkjc-odds-pusher-indicator';
+        container.style.cssText = 'position:fixed; bottom:10px; right:10px; padding:8px 12px; background:rgba(0,100,0,0.9); color:white; z-index:2147483647; border-radius:8px; font-size:14px; font-weight:bold; box-shadow:0 0 10px rgba(0,0,0,0.5); font-family:sans-serif; border: 2px solid #0f0; display:flex; flex-direction:column; gap:5px;';
+        
+        const statusText = document.createElement('span');
+        statusText.id = 'hkjc-pusher-status';
+        statusText.innerText = '🟢 Ready (v1.5)';
+        container.appendChild(statusText);
+
+        // Add Test Button
+        const testBtn = document.createElement('button');
+        testBtn.innerText = 'Test Push';
+        testBtn.style.cssText = 'font-size:12px; padding:2px 5px; cursor:pointer; color:black;';
+        testBtn.onclick = () => {
+            pushOdds({
+                test: true,
+                date: new Date().toISOString().split('T')[0],
+                venue: 'TEST',
+                raceNo: 99,
+                pools: []
+            });
+        };
+        container.appendChild(testBtn);
+
+        document.body.appendChild(container);
     }
 
     setInterval(ensureIndicator, 1000);
 
     function updateIndicator(status, msg) {
-        const indicator = document.getElementById('hkjc-odds-pusher-indicator');
-        if (!indicator) return;
+        const text = document.getElementById('hkjc-pusher-status');
+        const container = document.getElementById('hkjc-odds-pusher-indicator');
+        if (!text || !container) return;
 
         if (status === 'pushing') {
-            indicator.innerText = '🟡 Pushing...';
-            indicator.style.background = 'rgba(100,100,0,0.9)';
+            text.innerText = '🟡 Pushing...';
+            container.style.borderColor = '#ff0';
         } else if (status === 'success') {
-            indicator.innerText = '🟢 Pushed: ' + new Date().toLocaleTimeString();
-            indicator.style.background = 'rgba(0,100,0,0.9)';
+            text.innerText = '🟢 Pushed: ' + new Date().toLocaleTimeString();
+            container.style.borderColor = '#0f0';
         } else if (status === 'error') {
-            indicator.innerText = '🔴 Push Failed';
-            indicator.style.background = 'rgba(100,0,0,0.9)';
+            text.innerText = '🔴 Failed';
+            container.style.borderColor = '#f00';
         }
     }
 
     function pushOdds(payload) {
-        console.log('[HKJC Pusher] Pushing data for Race', payload.raceNo);
+        console.log('[HKJC Pusher] Pushing data:', payload);
         updateIndicator('pushing');
 
         GM_xmlhttpRequest({
@@ -75,86 +95,73 @@
         });
     }
 
-    // COMMON PROCESSING LOGIC
-    function processResponseData(json, context) {
+    // --- INTERCEPTOR LOGIC ---
+
+    function tryParseAndPush(url, responseBody, requestBody) {
         try {
-            // Check structure
-            const raceMeetings = json.data?.raceMeetings;
-            if (!raceMeetings || raceMeetings.length === 0) return;
-
-            const meeting = raceMeetings[0];
-            const pools = meeting.pmPools;
+            const json = JSON.parse(responseBody);
             
-            if (!pools || pools.length === 0) return;
+            // Log structure for debugging
+            // console.log('[HKJC Pusher] Inspecting JSON from:', url, Object.keys(json));
 
-            // Try to get context from request, or fallback to current page state if needed
-            let date = context?.date;
-            let venueCode = context?.venueCode;
-            let raceNo = context?.raceNo;
+            // Pattern 1: GraphQL RaceMeetings
+            if (json.data && json.data.raceMeetings && json.data.raceMeetings.length > 0) {
+                console.log('[HKJC Pusher] Found raceMeetings data!');
+                const meeting = json.data.raceMeetings[0];
+                
+                // Context extraction
+                let date, venueCode, raceNo;
 
-            // Fallback: Check if response itself contains date/venue (sometimes it does in other fields)
-            if (!date && meeting.meetingDate) date = meeting.meetingDate.split('T')[0]; // Assuming format
-            
-            if (!date || !venueCode || !raceNo) {
-                if (DEBUG_LOG) console.warn('[HKJC Pusher] Missing context for odds data:', { date, venueCode, raceNo });
-                return;
+                // Try from request body first
+                if (requestBody) {
+                    try {
+                        const rb = JSON.parse(requestBody);
+                        if (rb.variables) {
+                            date = rb.variables.date;
+                            venueCode = rb.variables.venueCode;
+                            raceNo = rb.variables.raceNo;
+                        }
+                    } catch (e) {}
+                }
+
+                // Fallback from response
+                if (!date && meeting.meetingDate) date = meeting.meetingDate.split('T')[0];
+                
+                // If we found odds pools, push them
+                if (meeting.pmPools && meeting.pmPools.length > 0) {
+                     // If we are missing context, try to infer or use defaults for debugging
+                     if (!venueCode) venueCode = 'ST'; // Risky assumption, but better than nothing for test
+                     if (!raceNo) raceNo = 1; // Risky
+
+                     console.log(`[HKJC Pusher] Extracted Odds: ${date} ${venueCode} R${raceNo}`);
+                     pushOdds({ date, venue: venueCode, raceNo, pools: meeting.pmPools });
+                }
             }
-
-            console.log(`[HKJC Pusher] Intercepted odds for ${date} ${venueCode} Race ${raceNo}`);
-            
-            pushOdds({
-                date,
-                venue: venueCode,
-                raceNo,
-                pools
-            });
-
         } catch (e) {
-            console.error('[HKJC Pusher] Error processing data:', e);
+            // Not JSON
         }
     }
 
-    function extractContextFromQuery(bodyString) {
-        try {
-            if (!bodyString) return null;
-            const body = JSON.parse(bodyString);
-            const vars = body.variables;
-            if (vars && vars.date && vars.venueCode && vars.raceNo) {
-                return {
-                    date: vars.date,
-                    venueCode: vars.venueCode,
-                    raceNo: vars.raceNo
-                };
-            }
-        } catch (e) {
-            // Ignore parse errors
-        }
-        return null;
-    }
-
-    // --- INTERCEPTOR 1: FETCH ---
+    // --- FETCH INTERCEPTOR ---
     const originalFetch = window.fetch;
     window.fetch = async function(...args) {
         const [resource, config] = args;
-        const response = await originalFetch(...args);
+        const url = typeof resource === 'string' ? resource : resource.url;
+        
+        console.log('[HKJC Pusher] Fetch:', url); // LOG ALL FETCH REQUESTS
 
-        if (typeof resource === 'string' && (resource.includes('graphql') || resource.includes('hkjc.com'))) {
-            if (DEBUG_LOG) console.log('[HKJC Pusher] Fetch detected:', resource);
-            
-            // Clone and inspect
-            try {
-                const clone = response.clone();
-                clone.json().then(data => {
-                    const context = config && config.body ? extractContextFromQuery(config.body) : null;
-                    processResponseData(data, context);
-                }).catch(() => {});
-            } catch (e) {}
-        }
+        const response = await originalFetch(...args);
+        
+        // Clone and inspect everything that looks like JSON/API
+        const clone = response.clone();
+        clone.text().then(text => {
+            tryParseAndPush(url, text, config ? config.body : null);
+        }).catch(e => {});
+
         return response;
     };
 
-    // --- INTERCEPTOR 2: XHR (XMLHttpRequest) ---
-    // Many legacy parts or specific libraries use XHR
+    // --- XHR INTERCEPTOR ---
     const originalOpen = XMLHttpRequest.prototype.open;
     const originalSend = XMLHttpRequest.prototype.send;
 
@@ -165,16 +172,8 @@
 
     XMLHttpRequest.prototype.send = function(body) {
         this.addEventListener('load', function() {
-            if (this._url && (this._url.includes('graphql') || this._url.includes('hkjc.com'))) {
-                if (DEBUG_LOG) console.log('[HKJC Pusher] XHR detected:', this._url);
-                try {
-                    const data = JSON.parse(this.responseText);
-                    const context = extractContextFromQuery(body);
-                    processResponseData(data, context);
-                } catch (e) {
-                    // Not JSON or error parsing
-                }
-            }
+            console.log('[HKJC Pusher] XHR:', this._url); // LOG ALL XHR REQUESTS
+            tryParseAndPush(this._url, this.responseText, body);
         });
         return originalSend.apply(this, arguments);
     };
