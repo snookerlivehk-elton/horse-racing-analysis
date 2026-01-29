@@ -42,6 +42,20 @@ export interface ScrapeResult {
 const BASE_URL = 'https://racing.hkjc.com';
 const RACECARD_URL = 'https://racing.hkjc.com/zh-hk/local/information/racecard';
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+function parseChineseDate(dateStr: string): string | undefined {
+    // 2026年2月1日 -> 2026/02/01
+    const match = dateStr.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+    if (match) {
+        const y = match[1];
+        const m = match[2].padStart(2, '0');
+        const d = match[3].padStart(2, '0');
+        return `${y}/${m}/${d}`;
+    }
+    return undefined;
+}
+
 function buildUrl(href: string | undefined | null): string | null {
     if (!href) return null;
     if (href.startsWith('http')) return href;
@@ -68,12 +82,15 @@ async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceD
     let raceDate: string | undefined;
 
     for (let i = 1; i <= maxRaces; i++) {
-        let url = `${RACECARD_URL}?race_no=${i}`;
+        // Use consistent RaceNo parameter
+        let url = `${RACECARD_URL}?RaceNo=${i}`;
         if (date) {
             url = `${RACECARD_URL}?racedate=${date}&RaceNo=${i}`;
         }
         
         try {
+            if (i > 1) await sleep(500); // Polite delay
+
             const html = await fetchHtml(url);
             const $ = cheerio.load(html);
             
@@ -86,6 +103,16 @@ async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceD
                 if (match) {
                     raceDate = match[1];
                     console.log(`Detected Race Date: ${raceDate}`);
+                    
+                    // If we are in auto-detect mode (no date provided), 
+                    // use the detected date for subsequent races to ensure consistency
+                    if (!date) {
+                        const parsed = parseChineseDate(raceDate);
+                        if (parsed) {
+                            date = parsed;
+                            console.log(`Auto-detected date ${date}, using for subsequent races.`);
+                        }
+                    }
                 }
             }
 

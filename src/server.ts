@@ -9,7 +9,7 @@ import { saveScrapeResultToDb } from './services/dbService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = "1.5.1"; // Fix: Auto-detect latest race date
+const VERSION = "1.5.2"; // Fix: Use detected date for subsequent race requests
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
