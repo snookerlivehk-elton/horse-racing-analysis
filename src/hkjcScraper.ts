@@ -211,17 +211,7 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
 
                     const cols = $(row).find('td').map((k, col) => $(col).text().trim()).get();
                     if (cols.length > 10) {
-                        // Adjust index based on actual column layout
-                        // Typically: 0:場次, 1:名次, 2:日期, 3:場地/跑道/賽道, 4:路程, 5:場地狀況, 6:賽事班次, 7:檔位, 8:評分, 9:練馬師, 10:騎師, 11:頭馬距離, 12:負磅, 13:獨贏賠率
-                        // But let's be flexible and map based on standard expectation or check header
-                        // Let's assume standard layout for now based on recent scrapes or the snippet provided
-                        
-                        // From web reference snippet:
-                        // 場次 名次 日期 路程 場地 班次 騎師 評分 獨贏
-                        // But the full table usually has more.
-                        // Let's try to map commonly found indices.
-                        
-                        records.push({
+                         records.push({
                             raceIndex: cols[0],
                             rank: cols[1],
                             date: cols[2],
@@ -273,6 +263,16 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
                     });
                 }
             });
+        }
+
+        console.log(`Scraped ${records.length} records for ${horseId}`);
+
+        if (Object.keys(profileInfo).length === 0 && records.length === 0) {
+             console.warn(`Warning: No profile info or records found for ${horseId}. HTML length: ${html.length}`);
+             // If HTML is short, it might be an error page
+             if (html.length < 5000) {
+                 console.warn(`HTML Content: ${html}`);
+             }
         }
 
         return { 
