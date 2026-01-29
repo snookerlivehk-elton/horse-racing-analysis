@@ -132,11 +132,8 @@ export interface HorseProfileExtended {
 }
 
 export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileExtended> {
-    // Clean ID if needed (e.g. HK_2023_J405 -> J405)
-    let queryId = horseId;
-    if (horseId.includes('_')) {
-        queryId = horseId.split('_').pop() || horseId;
-    }
+    // Do not strip the prefix (e.g. HK_2023_J405) as HKJC requires the full ID for the URL to work correctly.
+    const queryId = horseId;
 
     const url = `https://racing.hkjc.com/zh-hk/local/information/horse?horseId=${queryId}`;
     console.log(`Scraping horse profile: ${url}`);
