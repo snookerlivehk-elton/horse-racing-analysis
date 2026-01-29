@@ -143,25 +143,40 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
         const $ = cheerio.load(html);
         
         // Extract Horse Name
-        // Usually in a format like "馬匹資料 - 展雄威 (J405)" or header
-        // Looking for the main title or profile info
-        let name = $('title').text().split('-')[1]?.trim() || horseId;
-        // Or try to find it in the profile table
-        const profileName = $('.profile_table td').first().text().trim();
-        if (profileName) name = profileName;
+        // Usually in a format like "展雄威 - 馬匹資料 - 賽馬資訊 - 香港賽馬會"
+        // We take the first part.
+        let name = $('title').text().split('-')[0]?.trim() || horseId;
+        
+        // Fallback: Try to find it in the profile table or header
+        if (!name || name === '馬匹資料') {
+             const profileName = $('.profile_table td').first().text().trim();
+             if (profileName) name = profileName;
+        }
 
         // Extract Profile Details
         const profileInfo: any = {};
         // Standard table scraping
         $('td, th').each((i, el) => {
             const text = $(el).text().trim();
-            const nextEl = $(el).next();
-            let val = nextEl.text().trim();
+            
+            // Logic to get value:
+            // Structure is often: [Label] [:] [Value] (3 cells) OR [Label] [: Value] (2 cells)
+            let nextEl = $(el).next();
+            let rawNext = nextEl.text().trim();
+            let val = '';
 
-            // Clean leading colon if present (e.g. ": 澳洲 / 5")
-            if (val.startsWith(':')) {
-                val = val.substring(1).trim();
+            if (rawNext === ':') {
+                // Case: Label -> : -> Value
+                val = nextEl.next().text().trim();
+            } else if (rawNext.startsWith(':')) {
+                // Case: Label -> : Value
+                val = rawNext.substring(1).trim();
             }
+            
+            // Strict check: If we didn't find a value via colon association, 
+            // it might be a table header (e.g. "練馬師" next to "騎師"). 
+            // We skip those to avoid incorrect data.
+            if (!val) return;
 
             if (text.includes('出生地') && text.includes('馬齡')) {
                 // "澳洲 / 3"
