@@ -155,15 +155,16 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
 
         // Extract Profile Details
         const profileInfo: any = {};
-        // Expanded selector to include div and span for table-less layouts
-        $('td, th, div, span').each((i, el) => {
+        // Standard table scraping
+        $('td, th').each((i, el) => {
             const text = $(el).text().trim();
-            
-            // Optimization: Skip long text which is unlikely to be a label
-            if (text.length > 30) return;
-
             const nextEl = $(el).next();
-            const val = nextEl.text().trim();
+            let val = nextEl.text().trim();
+
+            // Clean leading colon if present (e.g. ": 澳洲 / 5")
+            if (val.startsWith(':')) {
+                val = val.substring(1).trim();
+            }
 
             if (text.includes('出生地') && text.includes('馬齡')) {
                 // "澳洲 / 3"
