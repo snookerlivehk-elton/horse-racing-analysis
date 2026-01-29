@@ -9,7 +9,7 @@ import { saveScrapeResultToDb } from './services/dbService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = "1.6.0"; // Feature: Added Analysis Page
+const VERSION = "1.6.1"; // Fix: Resolved TS build error with bestHorse type
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
@@ -117,7 +117,7 @@ app.get('/analysis', (req, res) => {
         lastScrapeResult.races.forEach(race => {
             // Find max rating in this race
             let maxRating = -1;
-            let bestHorse: RaceHorseInfo | null = null;
+            let bestHorse: any = null;
 
             race.horses.forEach(horse => {
                 // Jockey Count
