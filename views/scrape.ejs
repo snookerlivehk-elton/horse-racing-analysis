@@ -240,82 +240,144 @@
                             </div>
                             <span style="font-size: 0.9em; font-weight: normal; color: var(--text-muted);">共 <%= race.horses.length %> 匹</span>
                         </div>
+                        <div style="margin-top: 10px; display: flex; gap: 10px;">
+                            <button class="view-btn active" onclick="toggleView('<%= index %>', 'standard', this)">排位表</button>
+                            <button class="view-btn" onclick="toggleView('<%= index %>', 'stats', this)">統計資料</button>
+                        </div>
                     </div>
-                    <table>
-                        <thead>
-                            <tr>
-                                <th width="50">馬號</th>
-                                <th style="text-align: left;">馬名 (編號)</th>
-                                <th>騎師</th>
-                                <th>練馬師</th>
-                                <th>檔位</th>
-                                <th>負磅</th>
-                                <th>評分</th>
-                                <th>往績</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <% race.horses.forEach(function(horse, hIndex) { %>
+                    
+                    <!-- Standard View -->
+                    <div id="view-standard-<%= index %>" class="race-view active">
+                        <table>
+                            <thead>
                                 <tr>
-                                    <td class="horse-no"><%= horse.number %></td>
-                                    <td style="text-align: left;">
-                                        <div class="horse-name">
-                                            <a href="/horse/<%= horse.horseId %>" style="color: var(--accent-blue); text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
-                                                <%= horse.name %>
-                                            </a>
-                                        </div>
-                                        <div class="badge"><%= horse.horseId %></div>
-                                    </td>
-                                    <td><%= horse.jockey %></td>
-                                    <td><%= horse.trainer %></td>
-                                    <td><%= horse.draw %></td>
-                                    <td><%= horse.weight %></td>
-                                    <td><%= horse.rating %></td>
-                                    <td>
-                                        <% if (horse.performance && horse.performance.rows.length > 0) { %>
-                                            <span class="toggle-details" onclick="toggleDetails('details-<%= index %>-<%= hIndex %>')">
-                                                查看 (<%= horse.performance.rows.length %>場)
-                                            </span>
-                                        <% } else { %>
-                                            <span style="color: #ccc;">無紀錄</span>
-                                        <% } %>
-                                    </td>
+                                    <th width="50">馬號</th>
+                                    <th style="text-align: left;">馬名 (編號)</th>
+                                    <th>騎師</th>
+                                    <th>練馬師</th>
+                                    <th>檔位</th>
+                                    <th>負磅</th>
+                                    <th>評分</th>
+                                    <th>往績</th>
                                 </tr>
-                                <!-- Performance Details Row -->
-                                <% if (horse.performance && horse.performance.rows.length > 0) { %>
-                                    <tr id="details-<%= index %>-<%= hIndex %>" class="details-row">
-                                        <td colspan="8" class="details-cell">
-                                            <strong><%= horse.name %> 近績紀錄:</strong>
-                                            <table class="perf-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>場次</th><th>名次</th><th>日期</th><th>路程</th><th>場地</th>
-                                                        <th>班次</th><th>騎師</th><th>評分</th><th>獨贏</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    <% horse.performance.rows.slice(0, 6).forEach(function(row) { %>
-                                                        <tr>
-                                                            <!-- Mapping roughly based on standard HKJC scrape columns -->
-                                                            <td><%= row.columns[0] || '-' %></td>
-                                                            <td><%= row.columns[1] || '-' %></td>
-                                                            <td><%= row.columns[2] || '-' %></td>
-                                                            <td><%= row.columns[4] || '-' %></td>
-                                                            <td><%= row.columns[5] || '-' %></td>
-                                                            <td><%= row.columns[6] || '-' %></td>
-                                                            <td><%= row.columns[10] || '-' %></td>
-                                                            <td><%= row.columns[8] || '-' %></td>
-                                                            <td><%= row.columns[12] || '-' %></td>
-                                                        </tr>
-                                                    <% }); %>
-                                                </tbody>
-                                            </table>
+                            </thead>
+                            <tbody>
+                                <% race.horses.forEach(function(horse, hIndex) { %>
+                                    <tr>
+                                        <td class="horse-no"><%= horse.number %></td>
+                                        <td style="text-align: left;">
+                                            <div class="horse-name">
+                                                <a href="/horse/<%= horse.horseId %>" style="color: var(--accent-blue); text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
+                                                    <%= horse.name %>
+                                                </a>
+                                            </div>
+                                            <div class="badge"><%= horse.horseId %></div>
+                                        </td>
+                                        <td><%= horse.jockey %></td>
+                                        <td><%= horse.trainer %></td>
+                                        <td><%= horse.draw %></td>
+                                        <td><%= horse.weight %></td>
+                                        <td><%= horse.rating %></td>
+                                        <td>
+                                            <% if (horse.performance && horse.performance.rows.length > 0) { %>
+                                                <span class="toggle-details" onclick="toggleDetails('details-<%= index %>-<%= hIndex %>')">
+                                                    查看 (<%= horse.performance.rows.length %>場)
+                                                </span>
+                                            <% } else { %>
+                                                <span style="color: #ccc;">無紀錄</span>
+                                            <% } %>
                                         </td>
                                     </tr>
-                                <% } %>
-                            <% }); %>
-                        </tbody>
-                    </table>
+                                    <!-- Performance Details Row -->
+                                    <% if (horse.performance && horse.performance.rows.length > 0) { %>
+                                        <tr id="details-<%= index %>-<%= hIndex %>" class="details-row">
+                                            <td colspan="8" class="details-cell">
+                                                <strong><%= horse.name %> 近績紀錄:</strong>
+                                                <table class="perf-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th>場次</th><th>名次</th><th>日期</th><th>路程</th><th>場地</th>
+                                                            <th>班次</th><th>騎師</th><th>評分</th><th>獨贏</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        <% horse.performance.rows.slice(0, 6).forEach(function(row) { %>
+                                                            <tr>
+                                                                <!-- Mapping roughly based on standard HKJC scrape columns -->
+                                                                <td><%= row.columns[0] || '-' %></td>
+                                                                <td><%= row.columns[1] || '-' %></td>
+                                                                <td><%= row.columns[2] || '-' %></td>
+                                                                <td><%= row.columns[4] || '-' %></td>
+                                                                <td><%= row.columns[5] || '-' %></td>
+                                                                <td><%= row.columns[6] || '-' %></td>
+                                                                <td><%= row.columns[10] || '-' %></td>
+                                                                <td><%= row.columns[8] || '-' %></td>
+                                                                <td><%= row.columns[12] || '-' %></td>
+                                                            </tr>
+                                                        <% }); %>
+                                                    </tbody>
+                                                </table>
+                                            </td>
+                                        </tr>
+                                    <% } %>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Statistics View -->
+                    <div id="view-stats-<%= index %>" class="race-view" style="display: none; overflow-x: auto;">
+                        <table class="stats-table" style="width: 100%; min-width: 1000px;">
+                            <thead>
+                                <tr>
+                                    <th rowspan="2">馬名</th>
+                                    <th rowspan="2">馬齡/性別</th>
+                                    <th rowspan="2">負磅</th>
+                                    <th rowspan="2">評分</th>
+                                    <th colspan="2">總成績</th>
+                                    <th colspan="3">場地/路程</th>
+                                    <th colspan="1">騎師</th>
+                                    <th colspan="3">場地狀況</th>
+                                </tr>
+                                <tr>
+                                    <th style="font-size: 0.8em;">出道至今</th>
+                                    <th style="font-size: 0.8em;">今季</th>
+                                    <th style="font-size: 0.8em;">同班</th>
+                                    <th style="font-size: 0.8em;">同程</th>
+                                    <th style="font-size: 0.8em;">同場同程</th>
+                                    <th style="font-size: 0.8em;">合作成績</th>
+                                    <th style="font-size: 0.8em;">好地</th>
+                                    <th style="font-size: 0.8em;">黏地</th>
+                                    <th style="font-size: 0.8em;">軟/爛地</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% race.horses.forEach(function(horse) { %>
+                                    <tr>
+                                        <td style="font-weight: bold;"><%= horse.name %></td>
+                                        <!-- Placeholder for Age/Sex if not scraped yet -->
+                                        <td style="color: #888;">-</td>
+                                        <td><%= horse.weight %></td>
+                                        <td><%= horse.rating %></td>
+                                        
+                                        <% if (horse.stats) { %>
+                                            <td><%= horse.stats.lifetime || '-' %></td>
+                                            <td><%= horse.stats.currentSeason || '-' %></td>
+                                            <td><%= horse.stats.thisClass || '-' %></td>
+                                            <td><%= horse.stats.thisDistance || '-' %></td>
+                                            <td><%= horse.stats.thisCourseDistance || '-' %></td>
+                                            <td><%= horse.stats.jockeyPartnership || '-' %></td>
+                                            <td><%= horse.stats.trackGood || '-' %></td>
+                                            <td><%= horse.stats.trackYielding || '-' %></td>
+                                            <td><%= horse.stats.trackSoft || '-' %></td>
+                                        <% } else { %>
+                                            <td colspan="9" style="text-align: center; color: #ccc;">無統計資料</td>
+                                        <% } %>
+                                    </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         <% }); %>
@@ -326,7 +388,45 @@
         </div>
     <% } %>
 
+    <style>
+        .view-btn {
+            padding: 5px 15px;
+            background: #f0f0f0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .view-btn.active {
+            background: var(--accent-blue);
+            color: white;
+            border-color: var(--accent-blue);
+        }
+        .stats-table th, .stats-table td {
+            text-align: center;
+            border: 1px solid #ddd;
+            padding: 8px;
+            font-size: 0.9em;
+        }
+        .stats-table th {
+            background-color: #f8f9fa;
+        }
+    </style>
     <script>
+        function toggleView(raceIndex, viewType, btn) {
+            const container = document.getElementById(`race-${raceIndex}`);
+            // Hide all views in this race
+            container.querySelectorAll('.race-view').forEach(el => el.style.display = 'none');
+            // Show selected view
+            const view = document.getElementById(`view-${viewType}-${raceIndex}`);
+            if (view) view.style.display = 'block';
+            
+            // Update buttons
+            const btnContainer = btn.parentElement;
+            btnContainer.querySelectorAll('.view-btn').forEach(el => el.classList.remove('active'));
+            btn.classList.add('active');
+        }
+
         function downloadExcel() {
             window.location.href = '/scrape-data/excel';
         }

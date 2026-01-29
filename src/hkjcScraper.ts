@@ -14,17 +14,30 @@ export interface HorsePerformanceRecord {
     rows: HorsePerformanceRow[];
 }
 
+export interface HorseStats {
+    lifetime?: string;
+    currentSeason?: string;
+    thisClass?: string;
+    thisDistance?: string;
+    thisCourseDistance?: string;
+    jockeyPartnership?: string;
+    trackGood?: string;
+    trackYielding?: string;
+    trackSoft?: string;
+}
+
 export interface RaceHorseInfo {
     number: string;
     name: string;
     horseId: string;
     jockey: string;
     trainer: string;
-    draw: string; // 檔位
-    rating: string; // 評分
-    weight: string; // 負磅
+    draw: string;
+    weight: string;
+    rating: string;
     url: string;
     performance?: HorsePerformanceRecord;
+    stats?: HorseStats;
 }
 
 export interface RaceInfo {
@@ -382,6 +395,50 @@ async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceD
             } else if (firstId === firstRaceFirstHorseId) {
                 console.log(`Race ${i}: Duplicate of Race 1, stopping.`);
                 break;
+            }
+
+            // Try to scrape statistics page
+            const statsUrl = `${RACECARD_URL.replace('racecard', 'racecard-statistics')}?RaceNo=${i}${date ? `&racedate=${date}` : ''}`;
+            try {
+                const statsHtml = await fetchHtml(statsUrl);
+                const $stats = cheerio.load(statsHtml);
+                
+                // Parse stats table
+                // Looking for table with headers like "出道至今"
+                $stats('table').each((_, table) => {
+                    const headerText = $stats(table).find('tr').first().text();
+                    if (headerText.includes('出道至今') && headerText.includes('同程')) {
+                        // Found stats table
+                        $stats(table).find('tr').each((_, row) => {
+                            const cols = $stats(row).find('td').map((_, td) => $stats(td).text().trim().replace(/\s+/g, '')).get();
+                            // Expected columns based on image (approximate):
+                            // 0: Horse Name (or link), 1: Age/Sex, 2: Weight, 3: Rating, 
+                            // 4: Lifetime, 5: Season, 6: Class, 7: Course, 8: Surface, 9: Distance, 10: C&D, 11: Range, 
+                            // 12: Jockey, 13: Training, 14: Good, 15: Yielding, 16: Soft
+                            
+                            // Find matching horse in currentRaceHorses
+                            const horseName = cols[0];
+                            if (horseName) {
+                                const horse = currentRaceHorses.find(h => h.name === horseName || horseName.includes(h.name));
+                                if (horse) {
+                                    horse.stats = {
+                                        lifetime: cols[4],
+                                        currentSeason: cols[5],
+                                        thisClass: cols[6],
+                                        thisDistance: cols[9],
+                                        thisCourseDistance: cols[10],
+                                        jockeyPartnership: cols[12],
+                                        trackGood: cols[14],
+                                        trackYielding: cols[15],
+                                        trackSoft: cols[16]
+                                    };
+                                }
+                            }
+                        });
+                    }
+                });
+            } catch (statsErr) {
+                console.log(`Race ${i}: Could not fetch stats: ${statsErr}`);
             }
 
             races.push({
