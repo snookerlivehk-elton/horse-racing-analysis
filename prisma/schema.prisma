@@ -9,6 +9,63 @@ datasource db {
   provider = "postgresql"
 }
 
+// 基礎賽事資訊 (Race Meeting / Race)
+model Race {
+  id          String        @id @default(uuid())
+  hkjcId      String        @unique // e.g., "20260201-ST-1" (Date-Venue-RaceNo)
+  date        String        // YYYY-MM-DD
+  venue       String        // ST or HV
+  raceNo      Int
+  startTime   DateTime?
+  
+  // Relations
+  oddsHistory OddsHistory[]
+  results     RaceResult[]
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  @@unique([date, venue, raceNo])
+}
+
+// 賠率歷史記錄 (Odds Snapshot)
+model OddsHistory {
+  id          String   @id @default(uuid())
+  raceId      String
+  race        Race     @relation(fields: [raceId], references: [id])
+  timestamp   DateTime @default(now())
+  
+  // 獨贏賠率 (JSON format: { "1": 5.5, "2": 12.0 ... })
+  winOdds     Json?
+  
+  // 位置賠率 (JSON format: { "1": 1.8, "2": 3.5 ... })
+  placeOdds   Json?
+  
+  // 連贏賠率 (JSON format: { "1-2": 25.0 ... }) - Optional, can be large
+  qinOdds     Json?
+  
+  // 位置Q賠率 (JSON format: { "1-2": 8.5 ... }) - Optional
+  qplOdds     Json?
+
+  @@index([raceId, timestamp])
+}
+
+// 賽果 (Race Result)
+model RaceResult {
+  id          String   @id @default(uuid())
+  raceId      String
+  race        Race     @relation(fields: [raceId], references: [id])
+  
+  horseNo     Int
+  horseName   String?
+  place       Int?     // 1, 2, 3, 4...
+  finishTime  String?
+  jockey      String?
+  trainer     String?
+  
+  createdAt   DateTime @default(now())
+}
+
 model Horse {
   id           String             @id @default(uuid())
   hkjcId       String             @unique

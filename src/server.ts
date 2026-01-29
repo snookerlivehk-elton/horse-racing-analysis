@@ -6,9 +6,14 @@ import { analyzeHitRates, analyzeBigMovers, analyzeQuinellaComposition } from '.
 import { HitRateStats, TimePoint, MoverStats, QuinellaStats } from './types';
 import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo } from './hkjcScraper';
 import { saveScrapeResultToDb } from './services/dbService';
+import { fetchOdds, saveOddsHistory } from './services/oddsService';
+import { startScheduler } from './services/schedulerService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Start Scheduler
+startScheduler();
 const VERSION = "1.6.1"; // Fix: Resolved TS build error with bestHorse type
 
 let lastScrapeResult: ScrapeResult | null = null;
@@ -33,6 +38,33 @@ app.get('/debug', (req, res) => {
         });
     } catch (e: any) {
         res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
+app.get('/api/odds', async (req, res) => {
+    try {
+        const date = req.query.date as string;
+        const venueCode = (req.query.venueCode as string) || "ST";
+        const raceNo = parseInt(req.query.raceNo as string) || 1;
+
+        if (!date) {
+            return res.status(400).json({ error: "Date is required (YYYY-MM-DD)" });
+        }
+
+        console.log(`Fetching odds for ${date} ${venueCode} Race ${raceNo}`);
+        const result = await fetchOdds({
+            date,
+            venueCode,
+            raceNo
+        });
+
+        // Async save to history (don't block response)
+        saveOddsHistory(date, venueCode, raceNo, result.pools);
+
+        res.json(result);
+    } catch (e: any) {
+        console.error('Odds fetch error:', e);
+        res.status(500).json({ error: e.message });
     }
 });
 
@@ -263,6 +295,10 @@ app.get('/', async (req, res) => {
         console.error('Error:', error);
         res.status(500).send(`Server Error: ${error.message}`);
     }
+});
+
+app.get('/odds', (req, res) => {
+    res.render('odds');
 });
 
 app.listen(PORT, () => {
