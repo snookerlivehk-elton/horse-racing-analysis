@@ -166,16 +166,16 @@ export async function saveOddsHistory(date: string, venue: string, raceNo: numbe
         });
 
         // 2. Extract Odds Data
-        let winOdds = {};
-        let placeOdds = {};
-        let qinOdds = {};
-        let qplOdds = {};
+        let winOdds: Record<string, number> = {};
+        let placeOdds: Record<string, number> = {};
+        let qinOdds: Record<string, number> = {};
+        let qplOdds: Record<string, number> = {};
 
         pools.forEach(pool => {
             if (pool.sellStatus !== 'SELL' && pool.status !== 'DEFINED') return;
             if (!pool.oddsNodes) return;
 
-            const oddsMap = {};
+            const oddsMap: Record<string, number> = {};
             pool.oddsNodes.forEach((node: any) => {
                 oddsMap[node.combString] = parseFloat(node.oddsValue);
             });
