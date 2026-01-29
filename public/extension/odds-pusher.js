@@ -2,12 +2,15 @@
 // ==UserScript==
 // @name         HKJC Odds Pusher
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
 // @description  Intercepts HKJC GraphQL odds and pushes to local/remote server
 // @author       Trae Assistant
 // @match        *://bet.hkjc.com/*
 // @match        *://racing.hkjc.com/*
 // @match        *://info.hkjc.com/*
+// @include      *://bet.hkjc.com/*
+// @include      *://racing.hkjc.com/*
+// @include      *://info.hkjc.com/*
 // @connect      horse-racing-analysis-production.up.railway.app
 // @grant        GM_xmlhttpRequest
 // @run-at       document-start
@@ -16,7 +19,7 @@
 (function() {
     'use strict';
 
-    console.log('[HKJC Pusher] Script starting...');
+    console.log('[HKJC Pusher v1.3] Script starting... Please ensure Developer Mode is ON in extensions.');
 
     // CONFIGURATION
     const SERVER_URL = 'https://horse-racing-analysis-production.up.railway.app/api/odds/push';
@@ -29,7 +32,7 @@
         const indicator = document.createElement('div');
         indicator.id = 'hkjc-odds-pusher-indicator';
         indicator.style.cssText = 'position:fixed; bottom:10px; right:10px; padding:8px 12px; background:rgba(0,100,0,0.9); color:white; z-index:2147483647; border-radius:8px; font-size:14px; font-weight:bold; box-shadow:0 0 10px rgba(0,0,0,0.5); pointer-events:none; font-family:sans-serif; border: 2px solid #0f0;';
-        indicator.innerText = '🟢 Odds Pusher: Ready';
+        indicator.innerText = '🟢 Odds Pusher: Ready (v1.3)';
         document.body.appendChild(indicator);
         console.log('[HKJC Pusher] Indicator attached.');
     }
