@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>賽馬數據分析 (Data Analysis)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-gold: #fbbf24;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --border-color: #404040;
+        }
+
+        body { 
+            font-family: 'Roboto', 'Segoe UI', Tahoma, sans-serif; 
+            padding: 20px; 
+            background-color: var(--bg-dark); 
+            color: var(--text-main);
+            margin: 0; 
+        }
+
+        h1 { color: var(--accent-gold); text-align: center; margin-bottom: 20px; text-transform: uppercase; }
+        
+        .nav-bar { display: flex; justify-content: center; gap: 15px; margin-bottom: 30px; }
+        .nav-btn { 
+            background-color: var(--bg-panel); 
+            color: var(--text-main); 
+            padding: 10px 20px; 
+            text-decoration: none; 
+            border-radius: 4px; 
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+        .nav-btn:hover { background-color: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+        .nav-btn.active { background-color: var(--accent-blue); color: white; border-color: var(--accent-blue); }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: var(--bg-panel);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            border: 1px solid var(--border-color);
+        }
+
+        .card-header {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: var(--accent-gold);
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid var(--border-color); font-size: 0.9em; }
+        th { color: var(--text-muted); font-weight: 600; }
+        tr:hover { background-color: #383838; }
+
+        .stat-value { font-weight: bold; color: var(--accent-green); }
+        
+        .no-data { text-align: center; padding: 50px; color: var(--text-muted); }
+    </style>
+</head>
+<body>
+
+    <h1>📈 賽馬數據深度分析</h1>
+
+    <div class="nav-bar">
+        <a href="/" class="nav-btn">🏠 首頁</a>
+        <a href="/scrape-data" class="nav-btn">📊 排位表</a>
+        <a href="/analysis" class="nav-btn active">📈 深度分析</a>
+    </div>
+
+    <% if (!hasData) { %>
+        <div class="no-data">
+            <h2>暫無數據</h2>
+            <p>請先前往 <a href="/scrape-data" style="color: var(--accent-blue);">排位表</a> 頁面進行爬取。</p>
+        </div>
+    <% } else { %>
+        
+        <div class="dashboard-grid">
+            <!-- Jockey Stats -->
+            <div class="card">
+                <div class="card-header">🏇 騎師出賽統計 (Top 10)</div>
+                <canvas id="jockeyChart"></canvas>
+            </div>
+
+            <!-- Trainer Stats -->
+            <div class="card">
+                <div class="card-header">👨‍🏫 練馬師出賽統計 (Top 10)</div>
+                <canvas id="trainerChart"></canvas>
+            </div>
+
+            <!-- Top Rated Horses -->
+            <div class="card" style="grid-column: 1 / -1;">
+                <div class="card-header">⭐ 各場次最高評分馬匹</div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>場次</th>
+                            <th>馬號</th>
+                            <th>馬名</th>
+                            <th>評分</th>
+                            <th>騎師</th>
+                            <th>練馬師</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% topRatedHorses.forEach(horse => { %>
+                            <tr>
+                                <td>第 <%= horse.race %> 場</td>
+                                <td><%= horse.number %></td>
+                                <td><%= horse.name %></td>
+                                <td class="stat-value"><%= horse.rating %></td>
+                                <td><%= horse.jockey %></td>
+                                <td><%= horse.trainer %></td>
+                            </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <script>
+            // Data from server
+            const jockeyData = <%- JSON.stringify(jockeyStats) %>;
+            const trainerData = <%- JSON.stringify(trainerStats) %>;
+
+            // Chart Config
+            Chart.defaults.color = '#a0a0a0';
+            Chart.defaults.borderColor = '#404040';
+
+            // Jockey Chart
+            new Chart(document.getElementById('jockeyChart'), {
+                type: 'bar',
+                data: {
+                    labels: jockeyData.map(d => d.name),
+                    datasets: [{
+                        label: '出賽場數',
+                        data: jockeyData.map(d => d.count),
+                        backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                        borderColor: '#3b82f6',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // Trainer Chart
+            new Chart(document.getElementById('trainerChart'), {
+                type: 'bar',
+                data: {
+                    labels: trainerData.map(d => d.name),
+                    datasets: [{
+                        label: '出賽馬匹數',
+                        data: trainerData.map(d => d.count),
+                        backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                        borderColor: '#10b981',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+        </script>
+    <% } %>
+
+</body>
+</html>

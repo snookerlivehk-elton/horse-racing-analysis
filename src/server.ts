@@ -9,7 +9,7 @@ import { saveScrapeResultToDb } from './services/dbService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const VERSION = "1.5.2"; // Fix: Use detected date for subsequent race requests
+const VERSION = "1.6.0"; // Feature: Added Analysis Page
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
@@ -98,6 +98,77 @@ app.get('/scrape-data', async (req, res) => {
         });
     } catch (error: any) {
         res.status(500).send(`Server Error: ${error.message}`);
+    }
+});
+
+app.get('/analysis', (req, res) => {
+    try {
+        if (!lastScrapeResult || !lastScrapeResult.races) {
+            return res.render('analysis', { hasData: false });
+        }
+
+        // 1. Jockey Stats
+        const jockeyMap = new Map<string, number>();
+        // 2. Trainer Stats
+        const trainerMap = new Map<string, number>();
+        // 3. Top Rated Horses
+        const topRatedHorses: any[] = [];
+
+        lastScrapeResult.races.forEach(race => {
+            // Find max rating in this race
+            let maxRating = -1;
+            let bestHorse = null;
+
+            race.horses.forEach(horse => {
+                // Jockey Count
+                const j = horse.jockey.replace(/\(\d+\)/, '').trim(); // Remove weight allowance if any e.g. (2)
+                jockeyMap.set(j, (jockeyMap.get(j) || 0) + 1);
+
+                // Trainer Count
+                const t = horse.trainer;
+                trainerMap.set(t, (trainerMap.get(t) || 0) + 1);
+
+                // Rating check
+                const rating = parseInt(horse.rating) || 0;
+                if (rating > maxRating) {
+                    maxRating = rating;
+                    bestHorse = horse;
+                }
+            });
+
+            if (bestHorse) {
+                topRatedHorses.push({
+                    race: race.raceNumber,
+                    number: bestHorse.number,
+                    name: bestHorse.name,
+                    rating: bestHorse.rating,
+                    jockey: bestHorse.jockey,
+                    trainer: bestHorse.trainer
+                });
+            }
+        });
+
+        // Sort and slice top 10
+        const jockeyStats = Array.from(jockeyMap.entries())
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        const trainerStats = Array.from(trainerMap.entries())
+            .map(([name, count]) => ({ name, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+        res.render('analysis', {
+            hasData: true,
+            jockeyStats,
+            trainerStats,
+            topRatedHorses,
+            serverVersion: VERSION
+        });
+
+    } catch (error: any) {
+        res.status(500).send(`Analysis Error: ${error.message}`);
     }
 });
 
