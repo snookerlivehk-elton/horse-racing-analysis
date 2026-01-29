@@ -217,19 +217,21 @@ function formatJcStats(raw: string): string {
     // Remove all whitespace
     const clean = raw.replace(/\s+/g, '');
     
-    // Handle format like "12(2-3-1-0-6)" or "2-3-1-0-6"
-    // We want to extract the counts for 1st, 2nd, 3rd, 4th
-    
-    // Check for content inside parentheses first
-    const parenMatch = clean.match(/\(([\d-]+)\)/);
-    let target = parenMatch ? parenMatch[1] : clean;
-    
-    // Split by hyphen
-    const parts = target.split('-');
-    
-    // If we have at least 4 parts (Win-2nd-3rd-4th-...)
-    if (parts.length >= 4) {
-        return `(${parts[0]}-${parts[1]}-${parts[2]}-${parts[3]})`;
+    // Try to match 5 numbers first: N-N-N-N-N
+    // This handles "12(2-3-1-0-6)", "2-3-1-0-6", ":0-0-0-0-0" etc.
+    const match5 = clean.match(/(\d+)-(\d+)-(\d+)-(\d+)-(\d+)/);
+    if (match5) {
+        const nums = match5.slice(1, 6).map(n => parseInt(n, 10));
+        const total = nums.reduce((a, b) => a + b, 0);
+        return `${total}(${nums.join('-')})`;
+    }
+
+    // Try to match 4 numbers: N-N-N-N
+    const match4 = clean.match(/(\d+)-(\d+)-(\d+)-(\d+)/);
+    if (match4) {
+        const nums = match4.slice(1, 5).map(n => parseInt(n, 10));
+        const total = nums.reduce((a, b) => a + b, 0);
+        return `${total}(${nums.join('-')})`;
     }
     
     return raw;
@@ -460,15 +462,15 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                                 const horse = currentRaceHorses.find(h => h.name === horseName || horseName.includes(h.name));
                                 if (horse) {
                                     horse.stats = {
-                                        lifetime: formatJcStats(cols[4]), // Apply formatting to Lifetime
-                                        currentSeason: cols[5],
-                                        thisClass: cols[6],
-                                        thisDistance: cols[9],
-                                        thisCourseDistance: cols[10],
-                                        jockeyPartnership: cols[12],
-                                        trackGood: cols[14],
-                                        trackYielding: cols[15],
-                                        trackSoft: cols[16]
+                                        lifetime: formatJcStats(cols[4]),
+                                        currentSeason: formatJcStats(cols[5]),
+                                        thisClass: formatJcStats(cols[6]),
+                                        thisDistance: formatJcStats(cols[9]),
+                                        thisCourseDistance: formatJcStats(cols[10]),
+                                        jockeyPartnership: formatJcStats(cols[12]),
+                                        trackGood: formatJcStats(cols[14]),
+                                        trackYielding: formatJcStats(cols[15]),
+                                        trackSoft: formatJcStats(cols[16])
                                     };
                                 }
                             }
