@@ -50,6 +50,7 @@ export interface RaceInfo {
     venue?: string;
     track?: string;
     surface?: string;
+    location?: string; // "Sha Tin" or "Happy Valley"
     conditions?: string; // Full string like "Class 4 - 1200M - Turf"
 }
 
@@ -154,7 +155,7 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
 
         // Extract Profile Details
         const profileInfo: any = {};
-        $('td').each((i, el) => {
+        $('td, th').each((i, el) => {
             const text = $(el).text().trim();
             const nextEl = $(el).next();
             const val = nextEl.text().trim();
@@ -306,6 +307,196 @@ function formatJcStats(raw: string): string {
     return raw;
 }
 
+function calculateStatsFromRecords(rows: HorsePerformanceRow[]): string {
+    let totalRuns = 0;
+    let wins = 0;
+    let seconds = 0;
+    let thirds = 0;
+    let fourths = 0;
+    let unplaced = 0;
+
+    for (const row of rows) {
+        // Assume Rank is at index 1 based on HKJC_HEADERS
+        if (row.columns.length < 2) continue;
+        const rankStr = row.columns[1];
+        
+        // Check for non-run statuses (Withdrawals)
+        if (['WV', 'WX', 'WR'].includes(rankStr)) continue;
+
+        // Parse rank
+        // Handle "1 DH" etc. by taking the first integer part
+        const rank = parseInt(rankStr, 10);
+        
+        if (!isNaN(rank)) {
+            totalRuns++;
+            if (rank === 1) wins++;
+            else if (rank === 2) seconds++;
+            else if (rank === 3) thirds++;
+            else if (rank === 4) fourths++;
+            else unplaced++;
+        } else {
+            // Handle specific non-numeric ranks that count as runs
+            if (['PU', 'UR', 'FE', 'DNF', 'DISQ', 'TNP'].includes(rankStr)) {
+                totalRuns++;
+                unplaced++;
+            }
+        }
+    }
+
+    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${unplaced})`;
+}
+
+function calculateDetailedStats(
+    records: HorsePerformanceRow[], 
+    context: { 
+        seasonStart: Date,
+        seasonEnd: Date,
+        class: string,
+        distance: string,
+        venue: string, // "草地" or "全天候"
+        location: string, // "沙田" or "跑馬地"
+        jockey: string
+    }
+): HorseStats {
+    const stats = {
+        lifetime: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
+        currentSeason: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
+        thisClass: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
+        thisDistance: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
+        thisCourseDistance: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
+        jockeyPartnership: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
+        trackGood: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
+        trackYielding: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 },
+        trackSoft: { runs: 0, w: 0, q: 0, p: 0, f: 0, u: 0 }
+    };
+
+    const addStat = (bucket: keyof typeof stats, rank: number) => {
+        stats[bucket].runs++;
+        if (rank === 1) stats[bucket].w++;
+        else if (rank === 2) stats[bucket].q++;
+        else if (rank === 3) stats[bucket].p++;
+        else if (rank === 4) stats[bucket].f++;
+        else stats[bucket].u++;
+    };
+    
+    // Map class names to simple levels if needed, or string match
+    // Context Class: "第四班"
+    // Record Class: "4" or "4 (60-40)"
+    // Need mapping
+    const getSimpleClass = (c: string) => {
+        if (!c) return '';
+        if (c.includes('一')) return '1';
+        if (c.includes('二')) return '2';
+        if (c.includes('三')) return '3';
+        if (c.includes('四')) return '4';
+        if (c.includes('五')) return '5';
+        if (c.includes('公開')) return 'Open';
+        return c.replace(/\D/g, ''); // Extract number if exists
+    };
+
+    const targetClassSimple = getSimpleClass(context.class);
+    const targetDistance = context.distance.replace('米', '');
+
+    for (const row of records) {
+        if (row.columns.length < 10) continue;
+        const rankStr = row.columns[1];
+        const dateStr = row.columns[2];
+        const venueStr = row.columns[3]; // "田草A"
+        const distStr = row.columns[4];
+        const goingStr = row.columns[5];
+        const classStr = row.columns[6];
+        const jockeyStr = row.columns[10];
+
+        // Skip withdrawals
+        if (['WV', 'WX', 'WR'].includes(rankStr)) continue;
+
+        let rank = parseInt(rankStr, 10);
+        let isRun = !isNaN(rank);
+        
+        if (!isRun && ['PU', 'UR', 'FE', 'DNF', 'DISQ', 'TNP'].includes(rankStr)) {
+            isRun = true;
+            rank = 99; // Treat as unplaced
+        }
+
+        if (!isRun) continue;
+
+        // Lifetime
+        addStat('lifetime', rank);
+
+        // Current Season
+        // Parse DD/MM/YY
+        const [d, m, y] = dateStr.split('/').map(Number);
+        if (d && m && y) {
+            // Assume 20xx
+            const fullYear = 2000 + y;
+            const date = new Date(fullYear, m - 1, d);
+            if (date >= context.seasonStart && date <= context.seasonEnd) {
+                addStat('currentSeason', rank);
+            }
+        }
+
+        // This Class
+        if (getSimpleClass(classStr) === targetClassSimple && targetClassSimple !== '') {
+            addStat('thisClass', rank);
+        }
+
+        // This Distance
+        if (distStr === targetDistance) {
+            addStat('thisDistance', rank);
+        }
+
+        // This Course & Distance
+        // Match logic:
+        // ST Turf -> "田草"
+        // HV Turf -> "谷草"
+        // ST AWT -> "田泥" or "全天候"
+        let isSameCourse = false;
+        if (context.location === '沙田') {
+            if (context.venue.includes('草')) {
+                if (venueStr.includes('田草')) isSameCourse = true;
+            } else if (context.venue.includes('全天候') || context.venue.includes('泥')) {
+                if (venueStr.includes('田泥') || venueStr.includes('全天候')) isSameCourse = true;
+            }
+        } else if (context.location === '跑馬地') {
+            if (context.venue.includes('草')) {
+                if (venueStr.includes('谷草')) isSameCourse = true;
+            }
+            // HV has no AWT usually
+        }
+
+        if (isSameCourse && distStr === targetDistance) {
+            addStat('thisCourseDistance', rank);
+        }
+
+        // Jockey
+        // Simple includes check as names might be "P Purton" vs "Purton"
+        // Or exact match if Chinese
+        if (jockeyStr === context.jockey || (context.jockey && jockeyStr.includes(context.jockey))) {
+            addStat('jockeyPartnership', rank);
+        }
+
+        // Track Conditions
+        if (goingStr.includes('好')) addStat('trackGood', rank);
+        if (goingStr.includes('黏')) addStat('trackYielding', rank);
+        if (goingStr.includes('軟') || goingStr.includes('爛')) addStat('trackSoft', rank);
+    }
+
+    const fmt = (s: { runs: number, w: number, q: number, p: number, f: number, u: number }) => 
+        `${s.runs}(${s.w}-${s.q}-${s.p}-${s.f}-${s.u})`;
+
+    return {
+        lifetime: fmt(stats.lifetime),
+        currentSeason: fmt(stats.currentSeason),
+        thisClass: fmt(stats.thisClass),
+        thisDistance: fmt(stats.thisDistance),
+        thisCourseDistance: fmt(stats.thisCourseDistance),
+        jockeyPartnership: fmt(stats.jockeyPartnership),
+        trackGood: fmt(stats.trackGood),
+        trackYielding: fmt(stats.trackYielding),
+        trackSoft: fmt(stats.trackSoft)
+    };
+}
+
 export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[], raceDate: string }> {
     const races: RaceInfo[] = [];
     const maxRaces = 14; 
@@ -349,7 +540,7 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
             });
 
             // If found, parse it
-            let raceClass = '', distance = '', venue = '', track = '';
+            let raceClass = '', distance = '', venue = '', track = '', location = '';
             if (raceConditions) {
                 // Example: "第一場 - 第四班 - 1200米 - (60-40) - 草地 - "C+3" 賽道"
                 // Extract Class
@@ -358,7 +549,7 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                 
                 // Extract Distance
                 const distMatch = raceConditions.match(/\d+米/);
-                if (distMatch) distance = distMatch[0];
+                if (distMatch) distance = distMatch[0].replace('米', '');
                 
                 // Extract Venue/Track
                 // Usually "草地" or "全天候跑道"
@@ -369,6 +560,15 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                 // Track
                 const trackMatch = raceConditions.match(/"[^"]+" ?賽道/);
                 if (trackMatch) track = trackMatch[0];
+
+                // Location
+                if (raceConditions.includes('沙田')) location = '沙田';
+                else if (raceConditions.includes('跑馬地')) location = '跑馬地';
+                // If not explicit, try to infer from track
+                if (!location && track) {
+                    // C+3, A, B, C usually imply Turf which can be both
+                    // But if it's "全天候" it's usually ST
+                }
             }
 
             // Try to extract race date from the first successful page
@@ -507,48 +707,17 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
             }
 
             // Try to scrape statistics page
+            // DEPRECATED: We now calculate stats from records directly.
+            // Skipping stats page fetch to save time and avoid parsing errors.
+            /*
             const statsUrl = `${RACECARD_URL.replace('racecard', 'racecard-statistics')}?RaceNo=${i}${date ? `&racedate=${date}` : ''}`;
             try {
                 const statsHtml = await fetchHtml(statsUrl);
-                const $stats = cheerio.load(statsHtml);
-                
-                // Parse stats table
-                // Looking for table with headers like "出道至今"
-                $stats('table').each((_, table) => {
-                    const headerText = $stats(table).find('tr').first().text();
-                    if (headerText.includes('出道至今') && headerText.includes('同程')) {
-                        // Found stats table
-                        $stats(table).find('tr').each((_, row) => {
-                            const cols = $stats(row).find('td').map((_, td) => $stats(td).text().trim().replace(/\s+/g, '')).get();
-                            // Expected columns based on image (approximate):
-                            // 0: Horse Name (or link), 1: Age/Sex, 2: Weight, 3: Rating, 
-                            // 4: Lifetime, 5: Season, 6: Class, 7: Course, 8: Surface, 9: Distance, 10: C&D, 11: Range, 
-                            // 12: Jockey, 13: Training, 14: Good, 15: Yielding, 16: Soft
-                            
-                            // Find matching horse in currentRaceHorses
-                            const horseName = cols[0];
-                            if (horseName) {
-                                const horse = currentRaceHorses.find(h => h.name === horseName || horseName.includes(h.name));
-                                if (horse) {
-                                    horse.stats = {
-                                        lifetime: formatJcStats(cols[4]),
-                                        currentSeason: formatJcStats(cols[5]),
-                                        thisClass: formatJcStats(cols[6]),
-                                        thisDistance: formatJcStats(cols[9]),
-                                        thisCourseDistance: formatJcStats(cols[10]),
-                                        jockeyPartnership: formatJcStats(cols[12]),
-                                        trackGood: formatJcStats(cols[14]),
-                                        trackYielding: formatJcStats(cols[15]),
-                                        trackSoft: formatJcStats(cols[16])
-                                    };
-                                }
-                            }
-                        });
-                    }
-                });
+                // ... (Parsing logic removed)
             } catch (statsErr) {
                 console.log(`Race ${i}: Could not fetch stats: ${statsErr}`);
             }
+            */
 
             races.push({
                 raceNumber: i,
@@ -557,6 +726,7 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                 distance: distance,
                 venue: venue,
                 track: track,
+                location: location,
                 conditions: raceConditions
             });
             console.log(`Race ${i}: Found ${currentRaceHorses.length} horses. Info: ${raceClass} ${distance}`);
@@ -649,7 +819,46 @@ export async function scrapeTodayRacecard(date?: string): Promise<ScrapeResult> 
             
             // Attach performance back to the race structure
             info.raceIndices.forEach(idx => {
-                races[idx.r].horses[idx.h].performance = record;
+                const race = races[idx.r];
+                const horse = race.horses[idx.h];
+                horse.performance = record;
+                
+                // Determine Current Season Dates based on Race Date
+                // If Race Date is e.g. 2026/02/01, Season is 2025/2026
+                // Season starts approx Sept 1st previous year
+                let seasonStart = new Date();
+                let seasonEnd = new Date();
+                
+                if (raceDate) {
+                    const parsed = parseChineseDate(raceDate);
+                    if (parsed) {
+                        const rDate = new Date(parsed);
+                        const rYear = rDate.getFullYear();
+                        const rMonth = rDate.getMonth(); // 0-11
+                        
+                        // Season: Sept (8) to July (6)
+                        let startYear = rYear;
+                        if (rMonth < 8) { // Jan-Aug -> start year is previous year
+                            startYear = rYear - 1;
+                        }
+                        seasonStart = new Date(startYear, 8, 1); // Sept 1st
+                        seasonEnd = new Date(startYear + 1, 6, 31); // July 31st
+                    }
+                }
+
+                // Calculate stats from records directly
+                // Bypass HKJC stats table scraping which is unreliable
+                const stats = calculateDetailedStats(record.rows, {
+                    seasonStart,
+                    seasonEnd,
+                    class: race.class || '',
+                    distance: race.distance || '',
+                    venue: race.venue || '',
+                    location: race.location || '',
+                    jockey: horse.jockey
+                });
+                
+                horse.stats = stats;
             });
 
         } catch (e) {
