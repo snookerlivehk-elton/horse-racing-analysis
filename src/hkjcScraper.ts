@@ -322,7 +322,7 @@ function calculateStatsFromProfileRecords(records: HorseProfileRecord[]): string
         }
     }
 
-    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${fifths}-${unplaced})`;
+    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${fifths})`;
 }
 
 function formatJcStats(raw: string): string {
@@ -388,7 +388,7 @@ function calculateStatsFromRecords(rows: HorsePerformanceRow[]): string {
         }
     }
 
-    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${fifths}-${unplaced})`;
+    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${fifths})`;
 }
 
 function calculateDetailedStats(
@@ -528,7 +528,7 @@ function calculateDetailedStats(
     }
 
     const fmt = (s: { runs: number, w: number, q: number, p: number, f: number, fifth: number, u: number }) => 
-        `${s.runs}(${s.w}-${s.q}-${s.p}-${s.f}-${s.fifth}-${s.u})`;
+        `${s.runs}(${s.w}-${s.q}-${s.p}-${s.f}-${s.fifth})`;
 
     return {
         lifetime: fmt(stats.lifetime),
@@ -661,9 +661,10 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
 
                 const link = $tr.find('a[href*="/zh-hk/local/information/horse?horseid="]').first();
                 const href = link.attr('href') || '';
-                const fullUrl = buildUrl(href);
                 const match = href.match(/horseid=([^&]+)/i);
                 const horseId = match ? match[1] : '';
+                // Construct URL directly from ID as requested by user
+                const fullUrl = horseId ? `https://racing.hkjc.com/zh-hk/local/information/horse?horseId=${horseId}` : buildUrl(href);
                 const name = link.text().trim();
 
                 if (!horseId || !name || !fullUrl) return;
