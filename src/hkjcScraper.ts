@@ -155,8 +155,13 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
 
         // Extract Profile Details
         const profileInfo: any = {};
-        $('td, th').each((i, el) => {
+        // Expanded selector to include div and span for table-less layouts
+        $('td, th, div, span').each((i, el) => {
             const text = $(el).text().trim();
+            
+            // Optimization: Skip long text which is unlikely to be a label
+            if (text.length > 30) return;
+
             const nextEl = $(el).next();
             const val = nextEl.text().trim();
 

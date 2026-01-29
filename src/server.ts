@@ -362,14 +362,23 @@ app.get('/horse/:horseId', async (req, res) => {
 
     try {
         // 1. Try to get from DB first
-        let profile = await getHorseProfileFromDb(horseId);
+        let profile = null;
+        try {
+            profile = await getHorseProfileFromDb(horseId);
+        } catch (dbError) {
+            console.warn(`Warning: Failed to fetch profile from DB for ${horseId}. Continuing to scrape...`, dbError);
+        }
         
         // 2. If not in DB or missing key info (e.g. no origin), scrape it
         if (!profile || !profile.origin) {
             console.log(`Profile for ${horseId} missing or incomplete in DB. Scraping live...`);
             profile = await scrapeHorseProfile(horseId);
             // Save to DB for next time
-            await updateHorseProfileInDb(profile);
+            try {
+                await updateHorseProfileInDb(profile);
+            } catch (dbSaveError) {
+                console.warn(`Warning: Failed to save profile to DB for ${horseId}.`, dbSaveError);
+            }
         }
 
         res.render('horse', {
