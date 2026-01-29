@@ -2,11 +2,12 @@
 // ==UserScript==
 // @name         HKJC Odds Pusher
 // @namespace    http://tampermonkey.net/
-// @version      1.0
+// @version      1.1
 // @description  Intercepts HKJC GraphQL odds and pushes to local/remote server
 // @author       Trae Assistant
 // @match        https://bet.hkjc.com/*
 // @grant        GM_xmlhttpRequest
+// @run-at       document-idle
 // ==/UserScript==
 
 (function() {
@@ -14,23 +15,37 @@
 
     // CONFIGURATION
     const SERVER_URL = 'https://horse-racing-analysis-production.up.railway.app/api/odds/push';
-    // const SERVER_URL = 'http://localhost:3000/api/odds/push'; // For local testing
+    
+    // VISUAL INDICATOR (Created immediately to confirm script is running)
+    const indicator = document.createElement('div');
+    indicator.style.cssText = 'position:fixed; bottom:10px; right:10px; padding:8px 12px; background:rgba(0,100,0,0.9); color:white; z-index:2147483647; border-radius:8px; font-size:14px; font-weight:bold; box-shadow:0 0 10px rgba(0,0,0,0.5); pointer-events:none; font-family:sans-serif; border: 2px solid #0f0;';
+    indicator.innerText = '🟢 Odds Pusher: Ready';
+    document.body.appendChild(indicator);
 
-    console.log('[HKJC Pusher] Script loaded. Waiting for GraphQL requests...');
+    console.log('[HKJC Pusher] Script loaded. Indicator attached.');
 
-    // Helper to push data
-    async function pushOdds(payload) {
+    // Helper to push data using GM_xmlhttpRequest to bypass CORS
+    function pushOdds(payload) {
         console.log('[HKJC Pusher] Pushing data for Race', payload.raceNo);
-        try {
-            await fetch(SERVER_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            console.log('[HKJC Pusher] Push successful!');
-        } catch (e) {
-            console.error('[HKJC Pusher] Push failed:', e);
-        }
+        indicator.innerText = '🟡 Pushing...';
+        indicator.style.background = 'rgba(100,100,0,0.9)';
+
+        GM_xmlhttpRequest({
+            method: "POST",
+            url: SERVER_URL,
+            headers: { "Content-Type": "application/json" },
+            data: JSON.stringify(payload),
+            onload: function(response) {
+                console.log('[HKJC Pusher] Push successful:', response.responseText);
+                indicator.innerText = '🟢 Pushed: ' + new Date().toLocaleTimeString();
+                indicator.style.background = 'rgba(0,100,0,0.9)';
+            },
+            onerror: function(error) {
+                console.error('[HKJC Pusher] Push failed:', error);
+                indicator.innerText = '🔴 Push Failed';
+                indicator.style.background = 'rgba(100,0,0,0.9)';
+            }
+        });
     }
 
     // INTERCEPT FETCH (Used by new HKJC site)
@@ -77,7 +92,7 @@
                 }
             }
 
-            // If we couldn't get context from request (unlikely), try to infer or skip
+            // If we couldn't get context from request, try to parse from URL if possible, or skip
             if (!date || !venueCode || !raceNo) {
                 console.warn('[HKJC Pusher] Could not extract race context from request variables.');
                 return;
@@ -97,19 +112,5 @@
             console.error('[HKJC Pusher] Error processing response:', e);
         }
     }
-
-    // Add a visual indicator
-    const indicator = document.createElement('div');
-    indicator.style.position = 'fixed';
-    indicator.style.bottom = '10px';
-    indicator.style.right = '10px';
-    indicator.style.padding = '5px 10px';
-    indicator.style.background = 'rgba(0,0,0,0.7)';
-    indicator.style.color = '#0f0';
-    indicator.style.zIndex = '9999';
-    indicator.style.borderRadius = '5px';
-    indicator.style.fontSize = '12px';
-    indicator.innerText = 'Odds Pusher Active';
-    document.body.appendChild(indicator);
 
 })();
