@@ -279,6 +279,8 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
             name, 
             id: horseId,
             ...profileInfo,
+            // Use calculated record from rows to ensure consistency with analysis page
+            record: calculateStatsFromProfileRecords(records) || profileInfo.record, 
             records 
         };
 
@@ -286,6 +288,39 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
         console.error(`Error scraping horse profile for ${horseId}:`, error);
         throw error;
     }
+}
+
+function calculateStatsFromProfileRecords(records: HorseProfileRecord[]): string {
+    let totalRuns = 0;
+    let wins = 0;
+    let seconds = 0;
+    let thirds = 0;
+    let fourths = 0;
+    let unplaced = 0;
+
+    for (const record of records) {
+        // Skip withdrawals
+        if (['WV', 'WX', 'WR'].includes(record.rank)) continue;
+
+        let rank = parseInt(record.rank, 10);
+        let isRun = !isNaN(rank);
+        
+        if (!isRun && ['PU', 'UR', 'FE', 'DNF', 'DISQ', 'TNP'].includes(record.rank)) {
+            isRun = true;
+            rank = 99; // Treat as unplaced
+        }
+
+        if (isRun) {
+            totalRuns++;
+            if (rank === 1) wins++;
+            else if (rank === 2) seconds++;
+            else if (rank === 3) thirds++;
+            else if (rank === 4) fourths++;
+            else unplaced++;
+        }
+    }
+
+    return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${unplaced})`;
 }
 
 function formatJcStats(raw: string): string {
