@@ -102,6 +102,34 @@
         .rank-1 { color: #fbbf24; font-weight: bold; }
         .rank-2 { color: #9ca3af; font-weight: bold; }
         .rank-3 { color: #b45309; font-weight: bold; }
+
+        .filter-bar {
+            background: var(--bg-panel);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .filter-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .filter-item label {
+            color: var(--text-muted);
+            font-size: 0.85em;
+        }
+        .filter-item select {
+            background: var(--bg-dark);
+            color: var(--text-main);
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            border-radius: 4px;
+            min-width: 120px;
+        }
     </style>
 </head>
 <body>
@@ -114,6 +142,43 @@
             <a href="/scrape-data" class="btn-link">
                 <span>🔙</span> 返回排位表
             </a>
+        </div>
+
+        <div class="filter-bar">
+            <div class="filter-item">
+                <label>名次 (Rank)</label>
+                <select id="filter-rank" onchange="applyFilters()">
+                    <option value="">全部 (All)</option>
+                    <option value="top3">前 3 名 (Top 3)</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label>路程 (Distance)</label>
+                <select id="filter-distance" onchange="applyFilters()">
+                    <option value="">全部 (All)</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label>場地 (Venue)</label>
+                <select id="filter-venue" onchange="applyFilters()">
+                    <option value="">全部 (All)</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label>班次 (Class)</label>
+                <select id="filter-class" onchange="applyFilters()">
+                    <option value="">全部 (All)</option>
+                </select>
+            </div>
+            <div class="filter-item">
+                <label>騎師 (Jockey)</label>
+                <select id="filter-jockey" onchange="applyFilters()">
+                    <option value="">全部 (All)</option>
+                </select>
+            </div>
+            <div class="filter-item" style="justify-content: flex-end;">
+                <button onclick="resetFilters()" style="padding: 8px 16px; background: var(--accent-blue); color: white; border: none; border-radius: 4px; cursor: pointer;">重置 (Reset)</button>
+            </div>
         </div>
 
         <div class="chart-container">
@@ -137,8 +202,11 @@
                         <th>獨贏</th>
                     </tr>
                 </thead>
-                <tbody>
-                    <% records.forEach(function(record) { %>
+                <tbody id="records-body">
+                    <% records.forEach(function(record) { 
+                        // Skip header row if present in data
+                        if (record.raceIndex === '場次') return;
+                    %>
                         <tr>
                             <td><%= record.raceIndex %></td>
                             <td class="rank-<%= record.rank %>"><%= record.rank %></td>
@@ -159,89 +227,198 @@
     </div>
 
     <script>
-        // Prepare data for chart
-        const records = <%- JSON.stringify(records) %>;
-        // Reverse records for chronological order (oldest to newest)
-        const chronologicalRecords = [...records].reverse();
-
-        const labels = chronologicalRecords.map(r => r.date);
-        const ranks = chronologicalRecords.map(r => {
-            const rank = parseInt(r.rank);
-            return isNaN(rank) ? null : rank;
-        });
+        // Prepare data
+        let allRecords = <%- JSON.stringify(records) %>;
+        // Clean data: remove header rows if scraped by mistake
+        allRecords = allRecords.filter(r => r.raceIndex !== '場次' && r.rank !== '名次');
 
         const ctx = document.getElementById('performanceChart').getContext('2d');
-        const chart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: '名次 (Rank)',
-                    data: ranks,
-                    borderColor: '#fbbf24',
-                    backgroundColor: 'rgba(251, 191, 36, 0.1)',
-                    borderWidth: 2,
-                    pointBackgroundColor: '#fbbf24',
-                    pointRadius: 4,
-                    pointHoverRadius: 6,
-                    tension: 0.1,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        reverse: true, // Rank 1 is at top
-                        beginAtZero: false,
-                        min: 1,
-                        max: 14, // Assuming max 14 horses usually
-                        grid: {
-                            color: '#404040'
-                        },
-                        ticks: {
-                            stepSize: 1,
-                            color: '#a0a0a0'
-                        },
-                        title: {
-                            display: true,
-                            text: '名次',
-                            color: '#a0a0a0'
-                        }
-                    },
-                    x: {
-                        grid: {
-                            color: '#404040'
-                        },
-                        ticks: {
-                            color: '#a0a0a0'
-                        },
-                        title: {
-                            display: true,
-                            text: '日期',
-                            color: '#a0a0a0'
-                        }
-                    }
+        let chart;
+
+        function init() {
+            populateFilters();
+            updateChart(allRecords);
+        }
+
+        function populateFilters() {
+            const getUnique = (key) => [...new Set(allRecords.map(r => r[key]).filter(Boolean))].sort();
+            
+            const distances = getUnique('distance');
+            const venues = getUnique('venue');
+            const classes = getUnique('class');
+            const jockeys = getUnique('jockey');
+
+            // Helper to append options
+            const appendOpts = (id, opts) => {
+                const sel = document.getElementById(id);
+                // Keep the first "All" option
+                const firstOpt = sel.firstElementChild;
+                sel.innerHTML = '';
+                sel.appendChild(firstOpt);
+
+                opts.forEach(opt => {
+                    const el = document.createElement('option');
+                    el.value = opt;
+                    el.textContent = opt;
+                    sel.appendChild(el);
+                });
+            };
+
+            appendOpts('filter-distance', distances);
+            appendOpts('filter-venue', venues);
+            appendOpts('filter-class', classes);
+            appendOpts('filter-jockey', jockeys);
+        }
+
+        function applyFilters() {
+            const rankVal = document.getElementById('filter-rank').value;
+            const distVal = document.getElementById('filter-distance').value;
+            const venueVal = document.getElementById('filter-venue').value;
+            const classVal = document.getElementById('filter-class').value;
+            const jockeyVal = document.getElementById('filter-jockey').value;
+
+            const filtered = allRecords.filter(r => {
+                if (rankVal === 'top3') {
+                    const rank = parseInt(r.rank);
+                    if (isNaN(rank) || rank > 3) return false;
+                }
+                if (distVal && r.distance !== distVal) return false;
+                if (venueVal && r.venue !== venueVal) return false;
+                if (classVal && r.class !== classVal) return false;
+                if (jockeyVal && r.jockey !== jockeyVal) return false;
+                return true;
+            });
+
+            renderTable(filtered);
+            updateChart(filtered);
+        }
+
+        function resetFilters() {
+            document.getElementById('filter-rank').value = "";
+            document.getElementById('filter-distance').value = "";
+            document.getElementById('filter-venue').value = "";
+            document.getElementById('filter-class').value = "";
+            document.getElementById('filter-jockey').value = "";
+            applyFilters();
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('records-body');
+            tbody.innerHTML = '';
+            
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding: 20px;">沒有符合條件的紀錄</td></tr>';
+                return;
+            }
+
+            data.forEach(r => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${r.raceIndex}</td>
+                    <td class="rank-${r.rank}">${r.rank}</td>
+                    <td>${r.date}</td>
+                    <td>${r.distance}</td>
+                    <td>${r.venue}</td>
+                    <td>${r.class}</td>
+                    <td>${r.jockey}</td>
+                    <td>${r.trainer}</td>
+                    <td>${r.rating}</td>
+                    <td>${r.weight}</td>
+                    <td>${r.odds}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function updateChart(data) {
+            // Chart expects chronological order (oldest -> newest)
+            const chronoData = [...data].reverse();
+            
+            const labels = chronoData.map(r => r.date);
+            const ranks = chronoData.map(r => {
+                const rank = parseInt(r.rank);
+                return isNaN(rank) ? null : rank;
+            });
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '名次 (Rank)',
+                        data: ranks,
+                        borderColor: '#fbbf24',
+                        backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                        borderWidth: 2,
+                        pointBackgroundColor: '#fbbf24',
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        tension: 0.1,
+                        fill: true
+                    }]
                 },
-                plugins: {
-                    legend: {
-                        labels: {
-                            color: '#e0e0e0'
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            reverse: true, // Rank 1 is at top
+                            beginAtZero: false,
+                            min: 1,
+                            max: 14, // Assuming max 14 horses usually
+                            grid: {
+                                color: '#404040'
+                            },
+                            ticks: {
+                                stepSize: 1,
+                                color: '#a0a0a0'
+                            },
+                            title: {
+                                display: true,
+                                text: '名次',
+                                color: '#a0a0a0'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                color: '#404040'
+                            },
+                            ticks: {
+                                color: '#a0a0a0'
+                            },
+                            title: {
+                                display: true,
+                                text: '日期',
+                                color: '#a0a0a0'
+                            }
                         }
                     },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const index = context.dataIndex;
-                                const r = chronologicalRecords[index];
-                                return `名次: ${r.rank} (場次: ${r.raceIndex}, 距離: ${r.distance})`;
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#e0e0e0'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const index = context.dataIndex;
+                                    const r = chronoData[index];
+                                    return `名次: ${r.rank} (場次: ${r.raceIndex}, 距離: ${r.distance})`;
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
+        
+        // Initialize
+        init();
     </script>
 </body>
 </html>
