@@ -84,14 +84,13 @@
 </head>
 <body>
 
-    <h1>🐎 賽馬綜合走勢分析報告 (v1.1)</h1>
+    <h1>🐎 賽馬數據中心</h1>
     <div class="meta-info">
         分析場次總數: <strong><%= racesCount %></strong> | 最後更新: <%= lastUpdated %> | Server Version: <%= serverVersion %>
     </div>
 
     <div class="nav-bar">
         <a href="/scrape-data" class="nav-btn">📊 查看馬匹詳細數據</a>
-        <a href="/analysis" class="nav-btn" style="background-color: var(--accent-blue); color: white;">📈 走勢圖表</a>
         <a href="/odds" class="nav-btn" style="background-color: var(--accent-green); color: white;">💰 實時賠率</a>
     </div>
 
@@ -106,7 +105,7 @@
                     </h3>
                     <div style="display: flex; flex-wrap: wrap; gap: 10px;">
                         <% groupedRaces[date].forEach(race => { %>
-                            <a href="/analysis/race/<%= race.hkjcId %>" 
+                            <a href="/scrape-data?date=<%= race.date.replace(/-/g, '/') %>" 
                                style="display: inline-block; padding: 10px 15px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); text-decoration: none; border-radius: 4px; min-width: 60px; text-align: center;">
                                 第 <%= race.raceNo %> 場
                                 <div style="font-size: 0.8em; color: var(--text-muted); margin-top: 3px;">
@@ -123,144 +122,5 @@
             </div>
         <% } %>
     </div>
-
-    <% results.forEach(function(item) { %>
-        <div class="card">
-            <div class="card-title">時間點: <%= item.timePoint %></div>
-            <table>
-                <thead>
-                    <tr>
-                        <th>排名區間</th>
-                        <th>第一名命中率 (Win)</th>
-                        <th>第二名命中率 (Quinella)</th>
-                        <th>入圍命中率 (Place 3-6)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <% Object.keys(item.stats.segments).forEach(function(segKey) { 
-                        const seg = item.stats.segments[segKey];
-                    %>
-                    <tr>
-                        <td style="font-weight:bold;"><%= segKey %></td>
-                        <td>
-                            <%= seg.winHit %>次 
-                            <span class="<%= seg.winRate > 50 ? 'rate-high' : (seg.winRate > 20 ? 'rate-mid' : 'rate-low') %>">
-                                (<%= seg.winRate.toFixed(1) %>%)
-                            </span>
-                        </td>
-                        <td>
-                            <%= seg.quinellaHit %>次 
-                            <span class="<%= seg.quinellaRate > 50 ? 'rate-high' : (seg.quinellaRate > 20 ? 'rate-mid' : 'rate-low') %>">
-                                (<%= seg.quinellaRate.toFixed(1) %>%)
-                            </span>
-                        </td>
-                        <td>
-                            <%= seg.placeHit %>次 
-                            <span class="<%= seg.placeRate > 50 ? 'rate-high' : (seg.placeRate > 20 ? 'rate-mid' : 'rate-low') %>">
-                                (<%= seg.placeRate.toFixed(1) %>%)
-                            </span>
-                        </td>
-                    </tr>
-                    <% }); %>
-                </tbody>
-            </table>
-        </div>
-    <% }); %>
-
-    <!-- 落飛異動分析 -->
-    <div class="card">
-        <div class="card-title">📉 落飛/回飛 異動分析 (Big Movers)</div>
-        <div style="height: 400px; position: relative;">
-            <canvas id="moversChart"></canvas>
-        </div>
-        <table style="margin-top: 20px;">
-            <thead>
-                <tr>
-                    <th>異動類別</th>
-                    <th>數量</th>
-                    <th>勝出 (Win%)</th>
-                    <th>入圍 (Place%)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <% moverStats.forEach(function(m) { %>
-                <tr>
-                    <td><%= m.category %></td>
-                    <td><%= m.count %></td>
-                    <td><%= m.winCount %> (<%= m.winRate.toFixed(1) %>%)</td>
-                    <td><%= m.placeCount %> (<%= m.placeRate.toFixed(1) %>%)</td>
-                </tr>
-                <% }); %>
-            </tbody>
-        </table>
-    </div>
-
-    <!-- 連贏位結構分析 -->
-    <div class="card">
-        <div class="card-title">🧩 連贏位結構分析 (Quinella Composition)</div>
-        <table>
-            <thead>
-                <tr>
-                    <th>結構組合 (第一名 + 第二名)</th>
-                    <th>出現次數</th>
-                    <th>出現率 (%)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <% quinellaStats.forEach(function(q) { %>
-                <tr>
-                    <td><%= q.category %></td>
-                    <td><%= q.count %></td>
-                    <td><%= q.rate.toFixed(1) %> %</td>
-                </tr>
-                <% }); %>
-            </tbody>
-        </table>
-    </div>
-
-    <script>
-        // 準備 Chart.js 數據
-        const moverLabels = <%- JSON.stringify(moverStats.map(m => m.category)) %>;
-        const winRates = <%- JSON.stringify(moverStats.map(m => m.winRate)) %>;
-        const placeRates = <%- JSON.stringify(moverStats.map(m => m.placeRate)) %>;
-
-        const ctx = document.getElementById('moversChart').getContext('2d');
-        new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: moverLabels,
-                datasets: [
-                    {
-                        label: '勝出率 (Win %)',
-                        data: winRates,
-                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
-                        borderColor: 'rgba(52, 152, 219, 1)',
-                        borderWidth: 1
-                    },
-                    {
-                        label: '入圍率 (Place %)',
-                        data: placeRates,
-                        backgroundColor: 'rgba(46, 204, 113, 0.7)',
-                        borderColor: 'rgba(46, 204, 113, 1)',
-                        borderWidth: 1
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 100,
-                        title: { display: true, text: '百分比 (%)' }
-                    }
-                },
-                plugins: {
-                    legend: { position: 'top' }
-                }
-            }
-        });
-    </script>
 </body>
 </html>
