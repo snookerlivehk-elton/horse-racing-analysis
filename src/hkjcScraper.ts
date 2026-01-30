@@ -194,9 +194,11 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
                 profileInfo.importType = val;
             } else if (text.includes('季') && text.includes('獎金')) {
                 // Matches "季內獎金", "今季獎金", "今季獎金*"
+                console.log(`[Scraper] Found Season Stakes: ${text} -> ${val}`);
                 profileInfo.seasonStakes = val;
             } else if (text.includes('總獎金')) {
                 // Matches "總獎金", "總獎金*"
+                console.log(`[Scraper] Found Total Stakes: ${text} -> ${val}`);
                 profileInfo.totalStakes = val;
             } else if (text.includes('冠') && text.includes('亞') && text.includes('季')) {
                 profileInfo.record = val;

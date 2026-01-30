@@ -278,11 +278,13 @@
                                 <tr>
                                     <th width="50">馬號</th>
                                     <th style="text-align: left;">馬名 (編號)</th>
+                                    <th width="60">負磅</th>
                                     <th>騎師</th>
+                                    <th width="50">檔位</th>
                                     <th>練馬師</th>
-                                    <th>檔位</th>
-                                    <th>負磅</th>
-                                    <th>評分</th>
+                                    <th width="50">評分</th>
+                                    <th width="60">+/-</th>
+                                    <th width="80">配備</th>
                                     <th>往績</th>
                                 </tr>
                             </thead>
@@ -298,11 +300,15 @@
                                             </div>
                                             <div class="badge"><%= horse.horseId %></div>
                                         </td>
+                                        <td style="text-align:center;"><%= horse.weight || '-' %></td>
                                         <td><%= horse.jockey %></td>
+                                        <td style="text-align:center;"><%= horse.draw || '-' %></td>
                                         <td><%= horse.trainer %></td>
-                                        <td><%= horse.draw %></td>
-                                        <td><%= horse.weight %></td>
-                                        <td><%= horse.rating %></td>
+                                        <td style="text-align:center;"><%= horse.rating %></td>
+                                        <td style="text-align:center; color: <%= (horse.ratingChange || '').includes('+') ? '#ef4444' : ((horse.ratingChange || '').includes('-') ? '#10b981' : '#ccc') %>">
+                                            <%= horse.ratingChange || '-' %>
+                                        </td>
+                                        <td style="text-align:center; font-size: 0.85em;"><%= horse.gear || '-' %></td>
                                         <td>
                                             <% if (horse.performance && horse.performance.rows.length > 0) { %>
                                                 <span class="toggle-details" onclick="toggleDetails('details-<%= index %>-<%= hIndex %>')">
@@ -316,7 +322,7 @@
                                     <!-- Performance Details Row -->
                                     <% if (horse.performance && horse.performance.rows.length > 0) { %>
                                         <tr id="details-<%= index %>-<%= hIndex %>" class="details-row">
-                                            <td colspan="8" class="details-cell">
+                                            <td colspan="10" class="details-cell">
                                                 <strong><%= horse.name %> 近績紀錄:</strong>
                                                 <table class="perf-table">
                                                     <thead>

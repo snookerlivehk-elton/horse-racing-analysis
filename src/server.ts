@@ -33,7 +33,7 @@ app.use((req, res, next) => {
 
 // Start Scheduler
 startScheduler();
-const VERSION = "1.6.4"; // Added DB Fallback for Analysis
+const VERSION = "1.6.5"; // Bump version to force update & confirm deployment
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
@@ -69,11 +69,12 @@ async function fetchLatestRaceDataFromDb(): Promise<ScrapeResult | null> {
                 name: res.horseName || '',
                 jockey: res.jockey || '',
                 trainer: res.trainer || '',
-                rating: res.rating || '0', // Get rating from DB
-                // Add required fields with default values
-                horseId: '', // We might need to fetch this if possible, or leave empty if not critical for analysis view
-                draw: '',
-                weight: '',
+                rating: res.rating || '0',
+                ratingChange: res.ratingChange || '',
+                horseId: '', 
+                draw: res.draw || '',
+                weight: res.weight || '',
+                gear: res.gear || '',
                 age: '',
                 sex: '',
                 url: ''
