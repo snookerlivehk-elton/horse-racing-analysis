@@ -229,6 +229,104 @@ app.get('/api/analysis/race/:raceId', async (req, res) => {
     }
 });
 
+// Save Manual Adjustment
+app.post('/api/scoring/adjust', async (req, res) => {
+    try {
+        const { raceId, horseNo, conditionScore, manualPoints } = req.body;
+        
+        if (!raceId || horseNo === undefined) {
+            return res.status(400).json({ error: "Missing raceId or horseNo" });
+        }
+
+        const adjustment = await prisma.raceScoringAdjustment.upsert({
+            where: {
+                raceId_horseNo: {
+                    raceId: raceId,
+                    horseNo: parseInt(horseNo)
+                }
+            },
+            update: {
+                conditionScore: conditionScore !== undefined ? parseFloat(conditionScore) : undefined,
+                manualPoints: manualPoints !== undefined ? parseFloat(manualPoints) : undefined
+            },
+            create: {
+                raceId: raceId,
+                horseNo: parseInt(horseNo),
+                conditionScore: conditionScore !== undefined ? parseFloat(conditionScore) : undefined,
+                manualPoints: manualPoints !== undefined ? parseFloat(manualPoints) : undefined
+            }
+        });
+
+        res.json({ success: true, adjustment });
+    } catch (e: any) {
+        console.error('Adjustment save error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// Export Analysis Results to Excel
+app.get('/api/analysis/export/:raceId', async (req, res) => {
+    try {
+        const { raceId } = req.params;
+
+        // 1. Get Race Info
+        const race = await prisma.race.findUnique({ where: { hkjcId: raceId } });
+        if (!race) return res.status(404).send("Race not found");
+
+        // 2. Get Scores
+        let configRecord = await prisma.scoringConfig.findFirst({
+            where: { isActive: true },
+            orderBy: { createdAt: 'desc' }
+        });
+        const config = configRecord ? (configRecord.config as any) : DEFAULT_SCORING_CONFIG;
+        const engine = new ScoringEngine(config);
+        const scores = await engine.calculateRaceScore(raceId);
+
+        // 3. Build Excel
+        const workbook = XLSX.utils.book_new();
+        
+        // Prepare Data
+        const data: any[][] = [];
+        
+        // Headers
+        const headers = ['Rank', 'Horse No', 'Horse Name', 'Total Score'];
+        if (scores.length > 0) {
+            Object.values(scores[0].breakdown).forEach((b: any) => {
+                headers.push(b.factorLabel);
+            });
+        }
+        data.push(headers);
+
+        // Rows
+        scores.forEach((s: any, index: number) => {
+            const row = [
+                index + 1,
+                s.horseNo,
+                s.horseName,
+                s.totalScore.toFixed(1)
+            ];
+            Object.values(s.breakdown).forEach((b: any) => {
+                row.push(b.weightedScore.toFixed(1));
+            });
+            data.push(row);
+        });
+
+        const sheet = XLSX.utils.aoa_to_sheet(data);
+        XLSX.utils.book_append_sheet(workbook, sheet, "Analysis");
+
+        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
+        const filename = `analysis-${race.date}-${race.venue}-R${race.raceNo}.xlsx`;
+        
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.send(buffer);
+
+    } catch (e: any) {
+        console.error('Export error:', e);
+        res.status(500).send(e.message);
+    }
+});
+
 app.get('/analysis/race/:raceId', async (req, res) => {
     try {
         const { raceId } = req.params;
@@ -311,6 +409,35 @@ app.post('/api/config/scoring', async (req, res) => {
 
 app.get('/config', (req, res) => {
     res.render('config');
+});
+
+app.get('/odds', (req, res) => {
+    res.render('odds');
+});
+
+app.get('/horse/:horseId', async (req, res) => {
+    try {
+        const { horseId } = req.params;
+        const horse = await getHorseProfileFromDb(horseId);
+        
+        if (!horse) {
+            // Try to scrape if not in DB
+            try {
+                const scrapedProfile = await scrapeHorseProfile(horseId);
+                await updateHorseProfileInDb(scrapedProfile);
+                // Fetch again with formatted data
+                const newHorse = await getHorseProfileFromDb(horseId);
+                return res.render('horse', { horse: newHorse });
+            } catch (e) {
+                return res.status(404).send(`Horse ${horseId} not found and scrape failed.`);
+            }
+        }
+        
+        res.render('horse', { horse });
+    } catch (e: any) {
+        console.error('Horse View Error:', e);
+        res.status(500).send(e.message);
+    }
 });
 
 app.get('/api/odds', async (req, res) => {
@@ -411,7 +538,19 @@ app.get('/api/scrape-race-data', async (req, res) => {
 
 app.get('/scrape-data', async (req, res) => {
     try {
-        const date = req.query.date ? (req.query.date as string) : undefined;
+        let date = req.query.date ? (req.query.date as string) : undefined;
+        
+        // Normalize Chinese date format: 2026年2月1日 -> 2026/02/01
+        if (date && date.includes('年')) {
+            const match = date.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+            if (match) {
+                const y = match[1];
+                const m = match[2].padStart(2, '0');
+                const d = match[3].padStart(2, '0');
+                date = `${y}/${m}/${d}`;
+                console.log(`Normalized date: ${date}`);
+            }
+        }
         
         // Strategy:
         // 1. If date provided, force scrape (or fetch from DB for that date)
@@ -422,8 +561,15 @@ app.get('/scrape-data', async (req, res) => {
         if (date) {
              // For now, force scrape if date is specific (TODO: Check DB first)
              console.log(`Scraping for specific date: ${date}`);
-             lastScrapeResult = await scrapeTodayRacecard(date);
-             lastScrapeError = null;
+             try {
+                lastScrapeResult = await scrapeTodayRacecard(date);
+                lastScrapeError = null;
+             } catch (e: any) {
+                console.error(`Scrape failed for ${date}:`, e);
+                lastScrapeError = e.message;
+                // If failed, try to load from DB just in case
+                // ... logic to load from DB by date could be added here
+             }
         } else {
             // No date provided - Default view
             if (!lastScrapeResult) {

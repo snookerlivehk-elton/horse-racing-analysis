@@ -90,7 +90,14 @@ export class ScoringEngine {
 
         const raceDate = this.parseDate(race.date);
 
-        // 2. Fetch Horse Profiles & Trackwork for all participants
+        // 2a. Fetch Manual Adjustments
+        const adjustments = await prisma.raceScoringAdjustment.findMany({
+            where: { raceId: raceId }
+        });
+        const adjMap = new Map<number, any>();
+        adjustments.forEach(a => adjMap.set(a.horseNo, a));
+
+        // 2b. Fetch Horse Profiles & Trackwork for all participants
         const promises = race.results.map(async (result) => {
             if (!result.horseName) return null;
 
@@ -265,6 +272,7 @@ export class ScoringEngine {
             const breakdown: Record<string, ScoreBreakdown> = {};
             let totalWeightedScore = 0;
             const stats = participantStats.get(result.horseNo)!;
+            const adj = adjMap.get(result.horseNo); // Get adjustment if exists
 
             for (const [key, factor] of Object.entries(this.config.factors)) {
                 if (!factor.enabled) continue;
@@ -322,7 +330,7 @@ export class ScoringEngine {
                 }
                 else {
                     // Use existing logic for other factors
-                    rawScore = await this.calculateFactor(key, factor, result, horse, race);
+                    rawScore = await this.calculateFactor(key, factor, result, horse, race, adj);
                 }
 
                 const weightedScore = rawScore * (factor.weight / 100);
@@ -333,6 +341,16 @@ export class ScoringEngine {
                     factorLabel: factor.label
                 };
                 totalWeightedScore += weightedScore;
+            }
+            
+            // Add Manual Points if any
+            if (adj && adj.manualPoints) {
+                totalWeightedScore += adj.manualPoints;
+                breakdown['manual_adjustment'] = {
+                    rawScore: adj.manualPoints,
+                    weightedScore: adj.manualPoints,
+                    factorLabel: '手動修正'
+                };
             }
 
             horseScores.push({
@@ -361,12 +379,13 @@ export class ScoringEngine {
 
     // --- Factor Calculators (Legacy/Absolute) ---
 
-    private async calculateFactor(
+        private async calculateFactor(
         key: string, 
         factor: ScoringFactorConfig, 
         result: any, 
         horse: any,
-        race: any
+        race: any,
+        adj: any = null
     ): Promise<number> {
         const rules = factor.rules;
 
@@ -407,6 +426,10 @@ export class ScoringEngine {
                 return rules.inactive || 1;
 
             case 'condition':
+                // Check if manual adjustment exists
+                if (adj && typeof adj.conditionScore === 'number') {
+                    return adj.conditionScore;
+                }
                 return rules.default || 1;
 
             case 'carried_weight':

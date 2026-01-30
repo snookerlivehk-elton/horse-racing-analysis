@@ -390,20 +390,15 @@
                                         <td><%= horse.age && horse.sex ? `${horse.age}/${horse.sex}` : (horse.age || horse.sex || '-') %></td>
                                         <td><%= horse.weight %></td>
                                         <td><%= horse.rating %></td>
-                                        
-                                        <% if (horse.stats) { %>
-                                            <td><%= horse.stats.lifetime || '-' %></td>
-                                            <td><%= horse.stats.currentSeason || '-' %></td>
-                                            <td><%= horse.stats.thisClass || '-' %></td>
-                                            <td><%= horse.stats.thisDistance || '-' %></td>
-                                            <td><%= horse.stats.thisCourseDistance || '-' %></td>
-                                            <td><%= horse.stats.jockeyPartnership || '-' %></td>
-                                            <td><%= horse.stats.trackGood || '-' %></td>
-                                            <td><%= horse.stats.trackYielding || '-' %></td>
-                                            <td><%= horse.stats.trackSoft || '-' %></td>
-                                        <% } else { %>
-                                            <td colspan="9" style="text-align: center; color: #ccc;">無統計資料</td>
-                                        <% } %>
+                                        <td><%= horse.stats ? (horse.stats.lifetime || '-') : '-' %></td>
+                                        <td><%= horse.stats ? (horse.stats.currentSeason || '-') : '-' %></td>
+                                        <td><%= horse.stats ? (horse.stats.thisClass || '-') : '-' %></td>
+                                        <td><%= horse.stats ? (horse.stats.thisDistance || '-') : '-' %></td>
+                                        <td><%= horse.stats ? (horse.stats.thisCourseDistance || '-') : '-' %></td>
+                                        <td><%= horse.stats ? (horse.stats.jockeyPartnership || '-') : '-' %></td>
+                                        <td><%= horse.stats ? (horse.stats.trackGood || '-') : '-' %></td>
+                                        <td><%= horse.stats ? (horse.stats.trackYielding || '-') : '-' %></td>
+                                        <td><%= horse.stats ? (horse.stats.trackSoft || '-') : '-' %></td>
                                     </tr>
                                 <% }); %>
                             </tbody>

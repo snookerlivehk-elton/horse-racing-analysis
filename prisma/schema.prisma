@@ -197,6 +197,22 @@ model PersonStats {
   @@unique([type, hkjcId, season])
 }
 
+// 手動調整數據 (Manual Scoring Adjustments)
+model RaceScoringAdjustment {
+  id          String   @id @default(uuid())
+  raceId      String   // HKJC Race ID
+  horseNo     Int
+  
+  // Manual Inputs
+  conditionScore  Float?   @default(1.0) // 1-10 or 0-1 range? User said default 1.
+  manualPoints    Float?   @default(0.0) // Extra points added/subtracted
+  notes           String?
+  
+  updatedAt       DateTime @updatedAt
+
+  @@unique([raceId, horseNo])
+}
+
 // 騎練合作統計 (Jockey-Trainer Partnership)
 model JockeyTrainerStats {
   id          String   @id @default(uuid())
