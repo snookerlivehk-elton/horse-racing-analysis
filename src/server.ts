@@ -70,6 +70,13 @@ async function fetchLatestRaceDataFromDb(): Promise<ScrapeResult | null> {
                 jockey: res.jockey || '',
                 trainer: res.trainer || '',
                 rating: res.rating || '0', // Get rating from DB
+                // Add required fields with default values
+                horseId: '', // We might need to fetch this if possible, or leave empty if not critical for analysis view
+                draw: '',
+                weight: '',
+                age: '',
+                sex: '',
+                url: ''
             }))
         }));
 
