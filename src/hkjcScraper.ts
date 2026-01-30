@@ -269,8 +269,11 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
                         const $cols = $(row).find('td');
                         if ($cols.length < 10) return;
 
+                        const raceIndex = $cols.eq(0).text().trim();
+                        if (raceIndex.includes('季')) return; // Skip season header rows
+
                         records.push({
-                            raceIndex: $cols.eq(0).text().trim(),
+                            raceIndex: raceIndex,
                             rank: $cols.eq(1).text().trim(),
                             date: $cols.eq(2).text().trim(),
                             course: $cols.eq(3).text().trim(), // Course/Track
@@ -880,6 +883,9 @@ export async function scrapeHorsePerformance(url: string, horseId: string, horse
             const tds = $(el).find('td');
             if (tds.length < 10) return; // Basic validation
             
+            const firstCol = tds.eq(0).text().trim();
+            if (firstCol.includes('季')) return; // Skip season header rows
+
             let columns: string[] = [];
             
             if (isStandardTable) {
@@ -899,9 +905,13 @@ export async function scrapeHorsePerformance(url: string, horseId: string, horse
                 columns[11] = tds.eq(11).text().trim(); // LBW
                 columns[12] = tds.eq(12).text().trim(); // Odds
                 columns[13] = tds.eq(13).text().trim(); // Weight
+                columns[14] = tds.eq(14).text().trim(); // Running Position
+                columns[15] = tds.eq(15).text().trim(); // Finish Time
+                columns[16] = tds.eq(16).text().trim(); // Horse Weight
+                columns[17] = tds.eq(17).text().trim(); // Gear
                 
                 // Fill any gaps with empty string
-                for(let k=0; k<14; k++) if(columns[k] === undefined) columns[k] = '';
+                for(let k=0; k<18; k++) if(columns[k] === undefined) columns[k] = '';
                 
             } else {
                 // Fallback to raw extraction
