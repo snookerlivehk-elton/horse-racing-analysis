@@ -201,6 +201,35 @@
         </div>
     </div>
 
+    <!-- Details Modal -->
+    <div id="detailsModal" class="modal">
+        <div class="modal-content" style="width: 600px; max-width: 90%;">
+            <h3 id="detailsTitle">詳細得分數據</h3>
+            <div style="overflow-x: auto;">
+                <table class="score-table" style="margin-top: 10px;">
+                    <thead>
+                        <tr>
+                            <th>評分項目</th>
+                            <th>原始數據 (Raw Data)</th>
+                            <th>原始分 (Raw Score)</th>
+                            <th>權重 (Weight)</th>
+                            <th>得分 (Final)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailsBody">
+                        <!-- Filled by JS -->
+                    </tbody>
+                    <tfoot id="detailsFooter">
+                        <!-- Total -->
+                    </tfoot>
+                </table>
+            </div>
+            <div style="display: flex; justify-content: flex-end; margin-top: 20px;">
+                <button onclick="closeDetailsModal()" class="btn btn-primary">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Data passed from server
         const scores = <%- JSON.stringify(scores) %>;
@@ -298,14 +327,14 @@
                     <td class="${rankClass}">${index + 1}</td>
                     <td>${s.horseNo}</td>
                     <td style="text-align: left;">${s.horseName}</td>
-                    <td style="font-weight: bold; color: var(--accent-gold);">${s.totalScore.toFixed(1)}</td>
+                    <td style="font-weight: bold; color: var(--accent-gold);">${s.totalScore.toFixed(2)}</td>
                 `;
 
                 // Render Factor Columns
                 if (window.tableKeys) {
                     window.tableKeys.forEach(key => {
                         const item = s.breakdown[key];
-                        const val = item ? item.weightedScore.toFixed(1) : '-';
+                        const val = item ? item.weightedScore.toFixed(2) : '-';
                         // Highlight manual adjustment
                         const style = key === 'manual_adjustment' ? 'color: var(--accent-green); font-weight: bold;' : '';
                         tr.innerHTML += `<td style="${style}">${val}</td>`;
@@ -315,7 +344,8 @@
                 // Action Column
                 tr.innerHTML += `
                     <td>
-                        <button class="btn btn-secondary btn-sm" onclick="openEditModal(${s.horseNo}, '${s.horseName}')">✏️</button>
+                        <button class="btn btn-secondary btn-sm" onclick="openEditModal(${s.horseNo}, '${s.horseName}')" title="手動修正">✏️</button>
+                        <button class="btn btn-primary btn-sm" onclick="openDetailsModal(${s.horseNo})" title="詳細數據">ℹ️</button>
                     </td>
                 `;
 
@@ -464,6 +494,64 @@
             document.getElementById('editModal').style.display = 'none';
         }
 
+        function openDetailsModal(horseNo) {
+            const horseScore = scores.find(s => s.horseNo == horseNo);
+            if (!horseScore) return;
+
+            document.getElementById('detailsTitle').innerText = `詳細得分數據: ${horseScore.horseName} (#${horseNo})`;
+            
+            const tbody = document.getElementById('detailsBody');
+            tbody.innerHTML = '';
+            
+            let totalWeighted = 0;
+
+            // Sort keys similar to main table
+            const sortedKeys = window.tableKeys || Object.keys(horseScore.breakdown);
+
+            sortedKeys.forEach(key => {
+                const item = horseScore.breakdown[key];
+                if (!item) return;
+
+                const tr = document.createElement('tr');
+                
+                // Determine Weight display
+                let weightDisplay = '-';
+                if (key === 'manual_adjustment') {
+                    weightDisplay = 'Fixed';
+                } else if (config.factors[key]) {
+                    weightDisplay = config.factors[key].weight + '%';
+                }
+
+                // Source Value (Raw Data)
+                const sourceVal = item.sourceValue !== undefined ? item.sourceValue : '';
+
+                tr.innerHTML = `
+                    <td style="text-align: left;">${item.factorLabel}</td>
+                    <td style="color: var(--accent-gold);">${sourceVal}</td>
+                    <td>${item.rawScore.toFixed(2)}</td>
+                    <td>${weightDisplay}</td>
+                    <td style="font-weight: bold;">${item.weightedScore.toFixed(3)}</td>
+                `;
+                tbody.appendChild(tr);
+                totalWeighted += item.weightedScore;
+            });
+
+            // Footer
+            const tfoot = document.getElementById('detailsFooter');
+            tfoot.innerHTML = `
+                <tr style="background: #333; font-weight: bold;">
+                    <td colspan="4" style="text-align: right;">總分 (Total):</td>
+                    <td style="color: var(--accent-gold); font-size: 1.2em;">${totalWeighted.toFixed(3)}</td>
+                </tr>
+            `;
+
+            document.getElementById('detailsModal').style.display = 'block';
+        }
+
+        function closeDetailsModal() {
+            document.getElementById('detailsModal').style.display = 'none';
+        }
+
         async function saveAdjustment() {
             const raceId = document.getElementById('editRaceId').value;
             const horseNo = document.getElementById('editHorseNo').value;
@@ -495,9 +583,13 @@
 
         // Close modal if clicking outside
         window.onclick = function(event) {
-            const modal = document.getElementById('editModal');
-            if (event.target == modal) {
-                modal.style.display = "none";
+            const editModal = document.getElementById('editModal');
+            const detailsModal = document.getElementById('detailsModal');
+            if (event.target == editModal) {
+                editModal.style.display = "none";
+            }
+            if (event.target == detailsModal) {
+                detailsModal.style.display = "none";
             }
         }
 

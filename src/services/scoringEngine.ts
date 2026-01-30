@@ -5,6 +5,7 @@ interface ScoreBreakdown {
     rawScore: number; // The rule-based score (e.g., 8)
     weightedScore: number; // The final weighted score (e.g., 8 * 13.6% = 1.088)
     factorLabel: string;
+    sourceValue?: string | number; // The raw data (e.g., "14 days", "Rank 1", "Win 15%")
 }
 
 export interface HorseScore {
@@ -284,39 +285,42 @@ export class ScoringEngine {
                     // Rank by time (ascending)
                     const rank = getRank(result.horseNo, s => s.bestTimeSameDist, true);
                     rawScore = this.getRankScore(rank, factor.rules);
+                    sourceValue = stats.bestTimeSameDist ? `${(stats.bestTimeSameDist / 60).toFixed(2).replace('.', ':')} (Rank ${rank})` : 'N/A';
                 } 
                 else if (key === 'leading_ability') {
                     // Rank by avg early pos (ascending - lower is better)
                     const rank = getRank(result.horseNo, s => s.avgEarlyPos, true);
                     rawScore = this.getRankScore(rank, factor.rules);
+                    sourceValue = stats.avgEarlyPos ? `${stats.avgEarlyPos.toFixed(1)} (Rank ${rank})` : 'N/A';
                 }
                 else if (key === 'sectional_time') {
                     // Rank by sectional (ascending)
                     const rank = getRank(result.horseNo, s => s.lastSectional, true);
                     rawScore = this.getRankScore(rank, factor.rules);
+                    sourceValue = stats.lastSectional ? `${(stats.lastSectional).toFixed(2)}s (Rank ${rank})` : 'N/A';
                 }
                 // Handle Stats Factors (Absolute)
                 else if (key === 'jockey_win') {
                     rawScore = (stats.jockeyWinRate || 0) * (factor.rules.multiplier || 0.5);
+                    sourceValue = stats.jockeyWinRate ? `${(stats.jockeyWinRate * 100).toFixed(1)}%` : '0%';
                 }
                 else if (key === 'jockey_place') {
                     rawScore = (stats.jockeyPlaceRate || 0) * (factor.rules.multiplier || 0.3);
+                    sourceValue = stats.jockeyPlaceRate ? `${(stats.jockeyPlaceRate * 100).toFixed(1)}%` : '0%';
                 }
                 else if (key === 'trainer_win') {
                     rawScore = (stats.trainerWinRate || 0) * (factor.rules.multiplier || 0.5);
+                    sourceValue = stats.trainerWinRate ? `${(stats.trainerWinRate * 100).toFixed(1)}%` : '0%';
                 }
                 else if (key === 'trainer_place') {
                     rawScore = (stats.trainerPlaceRate || 0) * (factor.rules.multiplier || 0.3);
+                    sourceValue = stats.trainerPlaceRate ? `${(stats.trainerPlaceRate * 100).toFixed(1)}%` : '0%';
                 }
                 else if (key === 'partnership_win' || key === 'partnership_place') {
                     rawScore = 0; // Abandoned
+                    sourceValue = 'N/A';
                 }
                 else if (key === 'rest_days') {
-                     // logic moved here to use computed stats? Or use helper?
-                     // Let's use helper but pass stats if needed. 
-                     // Actually, helper calculateFactor is fine for absolute ones, 
-                     // but rest_days needs date math which we did in stats.
-                     // Let's use stats.
                      if (stats.daysSinceLastRun !== null) {
                         const d = stats.daysSinceLastRun;
                         if (d >= 14 && d <= 60) rawScore = factor.rules.days_14_to_60 || 8;
@@ -324,13 +328,17 @@ export class ScoringEngine {
                         else if (d >= 91 && d <= 120) rawScore = factor.rules.days_91_to_120 || 4;
                         else if (d >= 121 && d <= 180) rawScore = factor.rules.days_121_to_180 || 2;
                         else rawScore = factor.rules.days_over_180 || 0;
+                        sourceValue = `${d} days`;
                      } else {
                          rawScore = factor.rules.days_14_to_60 || 8; // Default?
+                         sourceValue = 'Unknown (Default)';
                      }
                 }
                 else {
                     // Use existing logic for other factors
-                    rawScore = await this.calculateFactor(key, factor, result, horse, race, adj);
+                    const calc = await this.calculateFactor(key, factor, result, horse, race, adj);
+                    rawScore = calc.score;
+                    sourceValue = calc.source;
                 }
 
                 const weightedScore = rawScore * (factor.weight / 100);
@@ -338,7 +346,8 @@ export class ScoringEngine {
                 breakdown[key] = {
                     rawScore,
                     weightedScore,
-                    factorLabel: factor.label
+                    factorLabel: factor.label,
+                    sourceValue
                 };
                 totalWeightedScore += weightedScore;
             }
@@ -356,7 +365,7 @@ export class ScoringEngine {
             horseScores.push({
                 horseNo: result.horseNo,
                 horseName: result.horseName || 'Unknown',
-                totalScore: parseFloat(totalWeightedScore.toFixed(2)),
+                totalScore: totalWeightedScore,
                 breakdown
             });
         }
@@ -386,62 +395,63 @@ export class ScoringEngine {
         horse: any,
         race: any,
         adj: any = null
-    ): Promise<number> {
+    ): Promise<{ score: number, source: string }> {
         const rules = factor.rules;
 
         switch (key) {
             case 'rating_trend':
-                if (!result.ratingChange) return rules.same || 4;
+                if (!result.ratingChange) return { score: rules.same || 4, source: 'No Change' };
                 let rChange = 0;
                 try {
                     rChange = parseInt(result.ratingChange.replace('+', ''));
                 } catch (e) {
-                    return rules.same || 4;
+                    return { score: rules.same || 4, source: 'Error' };
                 }
-                if (rChange <= -2) return rules.drop_2_plus || 8;
-                if (rChange < 0) return rules.drop_1_2 || 6;
-                if (rChange === 0) return rules.same || 4;
-                if (rChange <= 5) return rules.rise_1_5 || 2;
-                return rules.rise_6_plus || 0;
+                const trendStr = rChange > 0 ? `+${rChange}` : `${rChange}`;
+                if (rChange <= -2) return { score: rules.drop_2_plus || 8, source: trendStr };
+                if (rChange < 0) return { score: rules.drop_1_2 || 6, source: trendStr };
+                if (rChange === 0) return { score: rules.same || 4, source: trendStr };
+                if (rChange <= 5) return { score: rules.rise_1_5 || 2, source: trendStr };
+                return { score: rules.rise_6_plus || 0, source: trendStr };
 
             case 'horse_weight':
                 // Placeholder for now as we lack body weight data
-                return rules.moderate || 5;
+                return { score: rules.moderate || 5, source: 'N/A' };
 
             case 'age':
-                if (!horse || !horse.age) return rules.age_5 || 7;
+                if (!horse || !horse.age) return { score: rules.age_5 || 7, source: 'Unknown' };
                 const age = parseInt(horse.age);
-                if (isNaN(age)) return rules.age_5 || 7;
-                if (age <= 3) return rules.age_3 || 6;
-                if (age === 4) return rules.age_4 || 8;
-                if (age === 5) return rules.age_5 || 7;
-                if (age === 6) return rules.age_6 || 5;
-                return rules.age_7_plus || 2;
+                if (isNaN(age)) return { score: rules.age_5 || 7, source: 'Invalid' };
+                if (age <= 3) return { score: rules.age_3 || 6, source: `${age}yo` };
+                if (age === 4) return { score: rules.age_4 || 8, source: `${age}yo` };
+                if (age === 5) return { score: rules.age_5 || 7, source: `${age}yo` };
+                if (age === 6) return { score: rules.age_6 || 5, source: `${age}yo` };
+                return { score: rules.age_7_plus || 2, source: `${age}yo` };
 
             case 'trackwork':
-                if (!horse || !horse.trackworks) return rules.inactive || 1;
+                if (!horse || !horse.trackworks) return { score: rules.inactive || 1, source: '0' };
                 const count = horse.trackworks.length; 
-                if (count > 5) return rules.active || 8;
-                if (count > 0) return rules.moderate || 5;
-                return rules.inactive || 1;
+                if (count > 5) return { score: rules.active || 8, source: `${count} records` };
+                if (count > 0) return { score: rules.moderate || 5, source: `${count} records` };
+                return { score: rules.inactive || 1, source: '0 records' };
 
             case 'condition':
                 // Check if manual adjustment exists
                 if (adj && typeof adj.conditionScore === 'number') {
-                    return adj.conditionScore;
+                    return { score: adj.conditionScore, source: 'Manual' };
                 }
-                return rules.default || 1;
+                return { score: rules.default || 1, source: 'Default' };
 
             case 'carried_weight':
-                if (!result.weight) return rules.medium || 7;
+                if (!result.weight) return { score: rules.medium || 7, source: 'Unknown' };
                 const w = parseInt(result.weight);
-                if (isNaN(w)) return rules.medium || 7;
-                if (w < 118) return rules.light || 10;
-                if (w <= 128) return rules.medium || 7;
-                return rules.heavy || 4;
+                if (isNaN(w)) return { score: rules.medium || 7, source: 'Invalid' };
+                if (w < 118) return { score: rules.light || 10, source: `${w}lbs` };
+                if (w <= 128) return { score: rules.medium || 7, source: `${w}lbs` };
+                return { score: rules.heavy || 4, source: `${w}lbs` };
 
             default:
-                return 0;
+                return { score: 0, source: 'N/A' };
         }
     }
 }
