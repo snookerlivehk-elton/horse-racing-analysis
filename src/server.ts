@@ -10,7 +10,7 @@ import { saveScrapeResultToDb, updateHorseProfileInDb, getHorseProfileFromDb } f
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
 import { updateAllHorseProfiles } from './services/profileService';
-import { ScoringEngine, RaceContext, RaceEntryContext } from './services/scoringEngine';
+import { ScoringEngine, RaceContext, RaceEntryContext, ScoringConfig } from './services/scoringEngine';
 import { scrapeRaceTrackwork } from './services/trackworkScraper';
 import prisma from './lib/prisma';
 
@@ -180,9 +180,64 @@ app.set('view engine', 'ejs');
 // 使用 process.cwd() 確保路徑正確，防止 __dirname 在不同環境下的差異
 app.set('views', path.join(process.cwd(), 'views'));
 
+// Helper to parse weights from Query Params
+function parseScoringConfig(query: any): ScoringConfig | undefined {
+    if (!query.w_form) return undefined; // No weights provided
+
+    return {
+        weights: {
+            form: parseFloat(query.w_form) || 0,
+            jockey: parseFloat(query.w_jockey) || 0,
+            courseDistance: parseFloat(query.w_cd) || 0,
+            trackwork: parseFloat(query.w_track) || 0,
+            draw: parseFloat(query.w_draw) || 0,
+            class: parseFloat(query.w_class) || 0,
+            rating: parseFloat(query.w_rating) || 0,
+            partnership: parseFloat(query.w_partner) || 0,
+            barrierTrial: parseFloat(query.w_trial) || 0
+        },
+        subWeights: {
+            form: {
+                win: parseFloat(query.sw_form_win) || 100,
+                place2: parseFloat(query.sw_form_p2) || 80,
+                place3: parseFloat(query.sw_form_p3) || 60,
+                place4: parseFloat(query.sw_form_p4) || 40,
+                place5_6: parseFloat(query.sw_form_p56) || 20
+            },
+            jockey: {
+                recentFormWeight: parseFloat(query.sw_jockey_recent) || 0.6,
+                historyWeight: parseFloat(query.sw_jockey_hist) || 0.4
+            },
+            trackwork: {
+                fastWork: parseFloat(query.sw_track_fast) || 15,
+                slowWork: parseFloat(query.sw_track_slow) || 5,
+                trotWork: parseFloat(query.sw_track_trot) || 10
+            },
+            class: {
+                dropper: parseFloat(query.sw_class_drop) || 90,
+                riser: parseFloat(query.sw_class_rise) || 30,
+                same: parseFloat(query.sw_class_same) || 50
+            },
+            rating: {
+                belowWin: parseFloat(query.sw_rating_below) || 90,
+                nearWin: parseFloat(query.sw_rating_near) || 60,
+                aboveWin: parseFloat(query.sw_rating_above) || 30
+            }
+        },
+        daysLookback: parseInt(query.days) || 21
+    };
+}
+
+function normalizeVenue(venue: string | null | undefined): string {
+    if (!venue) return 'ST';
+    if (venue.includes('Happy Valley') || venue.includes('跑馬地') || venue === 'HV') return 'HV';
+    return 'ST';
+}
+
 app.get('/api/analysis/score/:raceId', async (req, res) => {
     try {
         const { raceId } = req.params;
+        const config = parseScoringConfig(req.query);
         
         // If raceId is HKJC format (e.g. 20260201-ST-1)
         const race = await prisma.race.findUnique({
@@ -195,8 +250,8 @@ app.get('/api/analysis/score/:raceId', async (req, res) => {
         
         if (race) {
             raceContext = {
-                course: race.venue || 'ST', // Default to ST if venue missing
-                distance: race.distance || 1200, // Default 1200
+                course: normalizeVenue(race.venue), 
+                distance: race.distance || 1200, 
                 trackType: race.trackType || 'Turf',
                 courseType: race.course || undefined // e.g. "Turf - A Course"
             };
@@ -227,8 +282,9 @@ app.get('/api/analysis/score/:raceId', async (req, res) => {
              return res.status(404).json({ error: "No horses found for this race. Ensure race is scraped." });
         }
 
-        const engine = new ScoringEngine();
+        const engine = new ScoringEngine(config);
         const scores = await engine.analyzeRace(entries, raceContext);
+
 
         // Enrich scores with race-specific data (Draw, Weight, etc.)
         const enrichedScores = scores.map(score => {
@@ -259,6 +315,7 @@ app.get('/api/analysis/score/:raceId', async (req, res) => {
 app.get('/analysis/race/:raceId', async (req, res) => {
     try {
         const { raceId } = req.params;
+        const config = parseScoringConfig(req.query);
         
         // If raceId is HKJC format (e.g. 20260201-ST-1)
         const race = await prisma.race.findUnique({
@@ -271,7 +328,7 @@ app.get('/analysis/race/:raceId', async (req, res) => {
         
         if (race) {
             raceContext = {
-                course: race.venue || 'ST', 
+                course: normalizeVenue(race.venue), 
                 distance: race.distance || 1200, 
                 trackType: race.trackType || 'Turf',
                 courseType: race.course || undefined
@@ -303,7 +360,7 @@ app.get('/analysis/race/:raceId', async (req, res) => {
              return res.status(404).send("No horses found for this race. Please ensure the race has been scraped.");
         }
 
-        const engine = new ScoringEngine();
+        const engine = new ScoringEngine(config);
         const scores = await engine.analyzeRace(entries, raceContext);
 
         // Enrich scores
@@ -320,6 +377,38 @@ app.get('/analysis/race/:raceId', async (req, res) => {
             };
         });
 
+        // Use configured or default weights
+        const weights = config?.weights || {
+             form: 0.20, jockey: 0.15, courseDistance: 0.15, trackwork: 0.10, 
+             draw: 0.10, class: 0.10, rating: 0.10, partnership: 0.05, barrierTrial: 0.05
+        };
+
+        const subWeights = config?.subWeights || {
+            form: { win: 100, place2: 80, place3: 60, place4: 40, place5_6: 20 },
+            jockey: { recentFormWeight: 0.6, historyWeight: 0.4 },
+            trackwork: { fastWork: 15, slowWork: 5, trotWork: 10 },
+            class: { dropper: 90, riser: 30, same: 50 },
+            rating: { belowWin: 90, nearWin: 60, aboveWin: 30 }
+        };
+
+        // Reconstruct query string for links
+        const queryParams = new URLSearchParams();
+        Object.entries(weights).forEach(([k, v]) => {
+            const keyMap: any = { courseDistance: 'w_cd', trackwork: 'w_track', partnership: 'w_partner', barrierTrial: 'w_trial' };
+            const key = keyMap[k] || `w_${k}`;
+            queryParams.append(key, v.toString());
+        });
+        // We also need to pass subWeights if they exist in config, otherwise defaults might be okay,
+        // but consistency is better.
+        if (config?.subWeights) {
+            Object.entries(subWeights.form).forEach(([k, v]) => queryParams.append(k === 'place5_6' ? 'sw_form_p56' : (k === 'win' ? 'sw_form_win' : `sw_form_p${k.replace('place', '')}`), v.toString()));
+            Object.entries(subWeights.jockey).forEach(([k, v]) => queryParams.append(k === 'recentFormWeight' ? 'sw_jockey_recent' : 'sw_jockey_hist', v.toString()));
+            Object.entries(subWeights.trackwork).forEach(([k, v]) => queryParams.append(k === 'fastWork' ? 'sw_track_fast' : (k === 'trotWork' ? 'sw_track_trot' : 'sw_track_slow'), v.toString()));
+            Object.entries(subWeights.class).forEach(([k, v]) => queryParams.append(`sw_class_${k}`, v.toString()));
+            Object.entries(subWeights.rating).forEach(([k, v]) => queryParams.append(`sw_rating_${k.replace('Win', '')}`, v.toString()));
+        }
+        const queryString = queryParams.toString();
+
         // Render view
         res.render('analysis', {
             raceId,
@@ -327,12 +416,135 @@ app.get('/analysis/race/:raceId', async (req, res) => {
             venue: race?.venue || 'ST',
             distance: race?.distance || '?',
             course: race?.course || '?',
-            scores: enrichedScores
+            scores: enrichedScores,
+            weights: weights, // Pass weights to view
+            subWeights: subWeights, // Pass sub-weights
+            queryString // Pass query string
         });
 
     } catch (e: any) {
         console.error('Analysis View error:', e);
         res.status(500).send(`Error generating analysis: ${e.message}`);
+    }
+});
+
+// Detailed Factor Analysis Page
+app.get('/analysis/race/:raceId/factor/:factor', async (req, res) => {
+    try {
+        const { raceId, factor } = req.params;
+        const config = parseScoringConfig(req.query);
+
+        // Get scraped result
+        const scrapeResult = await dbService.getLatestScrapeResult();
+        if (!scrapeResult) {
+            return res.status(404).send("No race data found.");
+        }
+        const race = scrapeResult.races.find(r => r.raceId === raceId);
+        
+        // Prepare entries (reuse logic)
+        const entries: any[] = [];
+        let raceContext: any = undefined;
+        if (race) {
+            raceContext = {
+                course: normalizeVenue(race.venue), 
+                distance: race.distance || 1200, 
+                trackType: race.trackType || 'Turf',
+                courseType: race.course || undefined
+            };
+            const names = race.results.map(r => r.horseName).filter(n => n !== null) as string[];
+            const horses = await prisma.horse.findMany({ where: { name: { in: names } }, select: { id: true, name: true } });
+            const horseMap = new Map(horses.map(h => [h.name, h.id]));
+            race.results.forEach(r => {
+                if (r.horseName && horseMap.has(r.horseName)) {
+                    entries.push({
+                        horseId: horseMap.get(r.horseName)!,
+                        jockey: r.jockey || '',
+                        trainer: r.trainer || '',
+                        draw: r.draw ? parseInt(r.draw) : undefined,
+                        rating: r.rating ? parseInt(r.rating) : undefined,
+                        class: race.class || undefined
+                    });
+                }
+            });
+        }
+
+        if (entries.length === 0) return res.status(404).send("No horses found.");
+
+        const engine = new ScoringEngine(config);
+        const scores = await engine.analyzeRace(entries, raceContext);
+
+        // Map factor to friendly name and key
+        const factorMap: any = {
+            'form': { name: '往績', key: 'formScore' },
+            'jockey': { name: '騎師', key: 'jockeyScore' },
+            'trackwork': { name: '晨操', key: 'trackworkScore' },
+            'draw': { name: '檔位', key: 'drawScore' },
+            'courseDistance': { name: '路程', key: 'courseDistScore' },
+            'class': { name: '班次', key: 'classScore' },
+            'rating': { name: '評分', key: 'ratingScore' },
+            'partnership': { name: '拍檔', key: 'partnershipScore' }
+        };
+
+        const currentFactor = factorMap[factor];
+        if (!currentFactor) return res.status(404).send("Invalid factor");
+
+        // Prepare data for view
+        const factorData = scores.map(s => {
+            const result = race?.results.find(r => r.horseName === s.horseName);
+            return {
+                horseNo: result?.horseNo,
+                horseName: s.horseName,
+                totalScore: s.totalScore,
+                factorScore: (s.breakdown as any)[currentFactor.key],
+                details: s.breakdown.details
+            };
+        }).sort((a, b) => b.factorScore - a.factorScore); // Sort by factor score
+
+        // Weights
+        const weights = config?.weights || {
+             form: 0.20, jockey: 0.15, courseDistance: 0.15, trackwork: 0.10, 
+             draw: 0.10, class: 0.10, rating: 0.10, partnership: 0.05, barrierTrial: 0.05
+        };
+        const subWeights = config?.subWeights || {
+            form: { win: 100, place2: 80, place3: 60, place4: 40, place5_6: 20 },
+            jockey: { recentFormWeight: 0.6, historyWeight: 0.4 },
+            trackwork: { fastWork: 15, slowWork: 5, trotWork: 10 },
+            class: { dropper: 90, riser: 30, same: 50 },
+            rating: { belowWin: 90, nearWin: 60, aboveWin: 30 }
+        };
+
+        // Reconstruct query string for navigation
+        const queryParams = new URLSearchParams();
+        // Main weights
+        Object.entries(weights).forEach(([k, v]) => {
+            const keyMap: any = { courseDistance: 'w_cd', trackwork: 'w_track', partnership: 'w_partner', barrierTrial: 'w_trial' };
+            const key = keyMap[k] || `w_${k}`;
+            queryParams.append(key, v.toString());
+        });
+        // Sub weights (flatten)
+        Object.entries(subWeights.form).forEach(([k, v]) => queryParams.append(k === 'place5_6' ? 'sw_form_p56' : (k === 'win' ? 'sw_form_win' : `sw_form_p${k.replace('place', '')}`), v.toString()));
+        Object.entries(subWeights.jockey).forEach(([k, v]) => queryParams.append(k === 'recentFormWeight' ? 'sw_jockey_recent' : 'sw_jockey_hist', v.toString()));
+        Object.entries(subWeights.trackwork).forEach(([k, v]) => queryParams.append(k === 'fastWork' ? 'sw_track_fast' : (k === 'trotWork' ? 'sw_track_trot' : 'sw_track_slow'), v.toString()));
+        Object.entries(subWeights.class).forEach(([k, v]) => queryParams.append(`sw_class_${k}`, v.toString()));
+        Object.entries(subWeights.rating).forEach(([k, v]) => queryParams.append(`sw_rating_${k.replace('Win', '')}`, v.toString()));
+        
+        const queryString = queryParams.toString();
+
+        res.render('analysis-factor', {
+            raceId,
+            raceNo: race?.raceNo,
+            venue: race?.venue,
+            factor,
+            factorName: currentFactor.name,
+            data: factorData,
+            weights,
+            subWeights,
+            queryString // Pass to view
+        });
+
+    } catch (e: any) {
+        console.error('Factor View error:', e);
+        res.status(500).send(`Error: ${e.message}`);
     }
 });
 

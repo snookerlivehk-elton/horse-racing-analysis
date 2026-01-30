@@ -12,26 +12,38 @@ export interface ScoringConfig {
         class: number;
         rating: number;
     };
+    subWeights: {
+        form: {
+            win: number;
+            place2: number;
+            place3: number;
+            place4: number;
+            place5_6: number;
+        };
+        jockey: {
+            recentFormWeight: number; // 0-1
+            historyWeight: number; // 0-1
+        };
+        trackwork: {
+            fastWork: number;
+            slowWork: number;
+            trotWork: number;
+        };
+        class: {
+            dropper: number;
+            riser: number;
+            same: number;
+        };
+        rating: {
+            belowWin: number;
+            nearWin: number;
+            aboveWin: number;
+        };
+    };
     daysLookback: number;
 }
 
-export interface HorseScore {
-    horseId: string;
-    horseName: string;
-    totalScore: number;
-    breakdown: {
-        formScore: number;
-        trackworkScore: number;
-        trialScore: number;
-        jockeyScore: number;
-        partnershipScore: number;
-        drawScore: number;
-        courseDistScore: number;
-        classScore: number;
-        ratingScore: number;
-        details: any;
-    };
-}
+// ... HorseScore interface ...
 
 const DEFAULT_CONFIG: ScoringConfig = {
     weights: {
@@ -44,6 +56,13 @@ const DEFAULT_CONFIG: ScoringConfig = {
         rating: 0.10,
         partnership: 0.05,
         barrierTrial: 0.05
+    },
+    subWeights: {
+        form: { win: 100, place2: 80, place3: 60, place4: 40, place5_6: 20 },
+        jockey: { recentFormWeight: 0.6, historyWeight: 0.4 },
+        trackwork: { fastWork: 15, slowWork: 5 },
+        class: { dropper: 90, riser: 30, same: 50 },
+        rating: { belowWin: 90, nearWin: 60, aboveWin: 30 }
     },
     daysLookback: 21
 };
@@ -310,24 +329,33 @@ export class ScoringEngine {
         if (!jockey) return { score: 0, details: "No jockey declared" };
 
         // A. Recent Form (Last 20 rides)
-        // We need to query RaceResults for this jockey.
-        // Note: This query might be slow without indices on 'jockey'.
         const recentRides = await prisma.raceResult.findMany({
-            where: { jockey: { contains: jockey } }, // Use contains for safety, or equals if exact
-            orderBy: { createdAt: 'desc' }, // Approximation of date
+            where: { jockey: { contains: jockey } },
+            orderBy: { createdAt: 'desc' },
             take: 20,
-            select: { place: true }
+            select: { place: true, date: true, horseName: true, raceId: true }
         });
 
         let recentPoints = 0;
         let validRides = 0;
+        const recentRidesList = [];
+
         recentRides.forEach(ride => {
             if (ride.place) {
                 validRides++;
-                if (ride.place === 1) recentPoints += 100;
-                else if (ride.place === 2) recentPoints += 60;
-                else if (ride.place === 3) recentPoints += 40;
-                else if (ride.place <= 5) recentPoints += 10;
+                let points = 0;
+                if (ride.place === 1) points = 100;
+                else if (ride.place === 2) points = 60;
+                else if (ride.place === 3) points = 40;
+                else if (ride.place <= 5) points = 10;
+                recentPoints += points;
+                
+                recentRidesList.push({
+                    date: ride.date,
+                    horse: ride.horseName,
+                    place: ride.place,
+                    points
+                });
             }
         });
         const recentScore = validRides > 0 ? (recentPoints / validRides) : 0;
@@ -336,22 +364,35 @@ export class ScoringEngine {
         const historyWithHorse = horseHistory.filter(h => h.jockey && h.jockey.includes(jockey));
         let historyPoints = 0;
         let validHistory = 0;
+        const historyList = [];
+
         historyWithHorse.forEach(h => {
             const rank = parseInt(h.place);
             if (!isNaN(rank)) {
                 validHistory++;
-                if (rank === 1) historyPoints += 100;
-                else if (rank === 2) historyPoints += 70;
-                else if (rank === 3) historyPoints += 50;
-                else if (rank <= 5) historyPoints += 20;
+                let points = 0;
+                if (rank === 1) points = 100;
+                else if (rank === 2) points = 70;
+                else if (rank === 3) points = 50;
+                else if (rank <= 5) points = 20;
+                historyPoints += points;
+                
+                historyList.push({
+                    date: h.date,
+                    place: h.place,
+                    points
+                });
             }
         });
         const historyScore = validHistory > 0 ? (historyPoints / validHistory) : 0;
 
-        // Weighting: 60% Recent Form, 40% History with Horse (if exists)
+        // Weighting: Configurable
+        const wRecent = this.config.subWeights.jockey.recentFormWeight;
+        const wHistory = this.config.subWeights.jockey.historyWeight;
+        
         let finalScore = 0;
         if (validHistory > 0) {
-            finalScore = (recentScore * 0.6) + (historyScore * 0.4);
+            finalScore = (recentScore * wRecent) + (historyScore * wHistory);
         } else {
             finalScore = recentScore;
         }
@@ -362,8 +403,10 @@ export class ScoringEngine {
                 jockey,
                 recentRides: validRides,
                 recentScore: Math.round(recentScore),
+                recentRidesList, // Added
                 historyRides: validHistory,
-                historyScore: Math.round(historyScore)
+                historyScore: Math.round(historyScore),
+                historyList // Added
             }
         };
     }
@@ -427,11 +470,12 @@ export class ScoringEngine {
             let points = 0;
             
             // Basic point system
-            if (rank === 1) points = 100;
-            else if (rank === 2) points = 80;
-            else if (rank === 3) points = 60;
-            else if (rank === 4) points = 40;
-            else if (rank <= 6) points = 20;
+            const w = this.config.subWeights.form;
+            if (rank === 1) points = w.win;
+            else if (rank === 2) points = w.place2;
+            else if (rank === 3) points = w.place3;
+            else if (rank === 4) points = w.place4;
+            else if (rank <= 6) points = w.place5_6;
             else points = 10; // Participation points
 
             // Decay factor? (Most recent is more important)
@@ -477,11 +521,14 @@ export class ScoringEngine {
             totalWorkCount++;
             
             if (work.type === '快操' || work.type === '倒快') {
-                score += 15;
+                score += this.config.subWeights.trackwork.fastWork;
                 fastWorkCount++;
                 recentLogs.push(`[${work.date}] ${work.type}`);
+            } else if (work.type === '快踱') {
+                score += this.config.subWeights.trackwork.trotWork;
+                // Maybe track trot count separately if needed, but for now just score
             } else if (work.type === '踱步' || work.type === '游泳' || work.type === '機操') {
-                score += 5;
+                score += this.config.subWeights.trackwork.slowWork;
             }
         }
 
