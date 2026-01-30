@@ -8,6 +8,12 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 const connectionString = process.env.DATABASE_URL;
 
+if (!connectionString) {
+    console.error('Error: DATABASE_URL is not defined in environment variables!');
+} else {
+    console.log(`Prisma connecting to database at: ${connectionString.split('@')[1] || 'unknown host'} (masked)`);
+}
+
 // Configure Postgres pool with SSL for production (Railway)
 // This fixes the ECONNREFUSED error when connecting to cloud database
 const pool = new Pool({ 

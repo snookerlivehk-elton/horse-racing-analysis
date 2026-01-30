@@ -343,13 +343,22 @@ app.post('/api/scrape/trackwork', async (req, res) => {
         console.log(`Starting trackwork scrape for date: ${date}`);
 
         for (const race of lastScrapeResult.races) {
-            const venue = race.venue || 'ST'; // Default to ST if missing
-            console.log(`Scraping trackwork for Race ${race.raceNumber} (${venue})...`);
+            // Map venue/location to HKJC code (ST/HV)
+            let venueCode = 'ST';
+            if (race.location === '跑馬地' || race.venue === 'HV' || race.venue === 'Happy Valley') {
+                venueCode = 'HV';
+            } else if (race.location === '沙田' || race.venue === 'ST' || race.venue === 'Sha Tin') {
+                venueCode = 'ST';
+            } else if (race.venue === '全天候跑道') {
+                venueCode = 'ST';
+            }
+            
+            console.log(`Scraping trackwork for Race ${race.raceNumber} (${venueCode})...`);
             
             try {
                 const count = await scrapeRaceTrackwork({
                     date,
-                    venue, 
+                    venue: venueCode, 
                     raceNo: race.raceNumber
                 });
                 results.push({ race: race.raceNumber, count });
