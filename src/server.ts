@@ -33,10 +33,59 @@ app.use((req, res, next) => {
 
 // Start Scheduler
 startScheduler();
-const VERSION = "1.6.3"; // Added Profile Service
+const VERSION = "1.6.4"; // Added DB Fallback for Analysis
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
+
+// Helper to reconstruct ScrapeResult from DB
+async function fetchLatestRaceDataFromDb(): Promise<ScrapeResult | null> {
+    try {
+        // 1. Find the latest race date
+        const latestRace = await prisma.race.findFirst({
+            orderBy: { date: 'desc' }
+        });
+
+        if (!latestRace) return null;
+
+        const targetDate = latestRace.date;
+
+        // 2. Fetch all races for that date
+        const races = await prisma.race.findMany({
+            where: { date: targetDate },
+            include: { results: true },
+            orderBy: { raceNo: 'asc' }
+        });
+
+        if (races.length === 0) return null;
+
+        // 3. Reconstruct races array
+        const reconstructedRaces = races.map(r => ({
+            raceNumber: r.raceNo,
+            venue: r.venue,
+            location: r.venue === 'HV' ? '跑馬地' : '沙田', // Simple mapping
+            horses: r.results.map(res => ({
+                number: res.horseNo.toString(),
+                name: res.horseName || '',
+                jockey: res.jockey || '',
+                trainer: res.trainer || '',
+                rating: res.rating || '0', // Get rating from DB
+            }))
+        }));
+
+        // 4. Return ScrapeResult
+        return {
+            raceDate: targetDate,
+            races: reconstructedRaces,
+            horses: [], // Not needed for Analysis page summary
+            scrapedAt: new Date().toISOString()
+        };
+
+    } catch (e) {
+        console.error('DB Fetch Error:', e);
+        return null;
+    }
+}
 
 // 設定 EJS 為視圖引擎
 app.set('view engine', 'ejs');
@@ -250,8 +299,14 @@ app.get('/scrape-data', async (req, res) => {
     }
 });
 
-app.get('/analysis', (req, res) => {
+app.get('/analysis', async (req, res) => {
     try {
+        // Fallback to DB if memory is empty
+        if (!lastScrapeResult) {
+            console.log('Memory empty, fetching latest data from DB...');
+            lastScrapeResult = await fetchLatestRaceDataFromDb();
+        }
+
         if (!lastScrapeResult || !lastScrapeResult.races) {
             return res.render('analysis', { hasData: false });
         }
@@ -323,6 +378,11 @@ app.get('/analysis', (req, res) => {
 
 app.post('/api/scrape/trackwork', async (req, res) => {
     try {
+        // Fallback to DB if memory is empty
+        if (!lastScrapeResult) {
+            lastScrapeResult = await fetchLatestRaceDataFromDb();
+        }
+
         if (!lastScrapeResult || !lastScrapeResult.races) {
             return res.status(400).json({ error: 'No race data available. Please scrape racecard first.' });
         }

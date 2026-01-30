@@ -117,22 +117,40 @@ export async function saveScrapeResultToDb(result: ScrapeResult): Promise<{ save
     for (const race of result.races) {
         try {
             // Construct Race ID: YYYYMMDD-Venue-RaceNo
-            // raceDate format is usually YYYY/MM/DD from scraper
-            const dateStr = result.raceDate?.replace(/\//g, '') || new Date().toISOString().slice(0, 10).replace(/-/g, '');
-            const venue = race.venue || 'ST'; // Default to ST if missing
-            const raceId = `${dateStr}-${venue}-${race.raceNumber}`;
+            // Normalize Date: 2026年2月1日 -> 20260201, 2026/02/01 -> 20260201
+            let dateStr = result.raceDate || new Date().toISOString().slice(0, 10);
+            if (dateStr.includes('年')) {
+                const match = dateStr.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+                if (match) {
+                    const [_, y, m, d] = match;
+                    dateStr = `${y}${m.padStart(2, '0')}${d.padStart(2, '0')}`;
+                }
+            } else {
+                dateStr = dateStr.replace(/\//g, '').replace(/-/g, '');
+            }
+
+            // Normalize Venue: 草地/全天候 -> ST, 跑馬地 -> HV
+            let venueCode = 'ST';
+            const v = race.venue || 'ST';
+            if (v.includes('跑馬地') || v === 'HV' || v === 'Happy Valley') {
+                venueCode = 'HV';
+            } else if (v.includes('沙田') || v.includes('草地') || v.includes('全天候') || v === 'ST') {
+                venueCode = 'ST';
+            }
+
+            const raceId = `${dateStr}-${venueCode}-${race.raceNumber}`;
 
             const dbRace = await prisma.race.upsert({
                 where: { hkjcId: raceId },
                 update: {
                     date: result.raceDate || new Date().toISOString().slice(0, 10),
-                    venue: venue,
+                    venue: venueCode,
                     raceNo: race.raceNumber
                 },
                 create: {
                     hkjcId: raceId,
                     date: result.raceDate || new Date().toISOString().slice(0, 10),
-                    venue: venue,
+                    venue: venueCode,
                     raceNo: race.raceNumber
                 }
             });
@@ -148,7 +166,8 @@ export async function saveScrapeResultToDb(result: ScrapeResult): Promise<{ save
                 horseNo: parseInt(h.number) || 0,
                 horseName: h.name,
                 jockey: h.jockey,
-                trainer: h.trainer
+                trainer: h.trainer,
+                rating: h.rating // Save rating
             }));
 
             if (entries.length > 0) {

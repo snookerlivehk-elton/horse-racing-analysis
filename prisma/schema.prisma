@@ -62,6 +62,7 @@ model RaceResult {
   finishTime  String?
   jockey      String?
   trainer     String?
+  rating      String?  // Current rating in this race
   
   createdAt   DateTime @default(now())
 }
