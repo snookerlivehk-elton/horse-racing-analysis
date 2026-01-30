@@ -7,19 +7,14 @@ export async function getHorseProfileFromDb(horseId: string): Promise<HorseProfi
         const horse = await prisma.horse.findUnique({
             where: { hkjcId: horseId },
             include: {
-                performances: {
-                    orderBy: {
-                        createdAt: 'desc' // Ideally sort by date, but date is string "dd/mm/yy". createdAt is reliable for latest scrape order if inserted sequentially.
-                        // Or we can try to parse date later. For now, just return list.
-                    }
-                }
+                performances: true
             }
         });
 
         if (!horse) return null;
 
         // Map performances to HorseProfileRecord
-        const records: HorseProfileRecord[] = horse.performances.map(p => ({
+        let records: HorseProfileRecord[] = horse.performances.map(p => ({
             raceIndex: p.raceIndex || '',
             rank: p.place || '',
             date: p.date || '',
@@ -38,6 +33,17 @@ export async function getHorseProfileFromDb(horseId: string): Promise<HorseProfi
             horseWeight: p.horseWeight || '',
             gear: p.gear || ''
         }));
+
+        // Sort by Date Descending (Newest First)
+        records.sort((a, b) => {
+            const parseDate = (d: string) => {
+                const parts = d.split('/');
+                if (parts.length !== 3) return 0;
+                // dd/mm/yy -> 20yy-mm-dd (Assume 20xx)
+                return new Date(`20${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+            };
+            return parseDate(b.date) - parseDate(a.date);
+        });
 
         return {
             id: horse.hkjcId,
@@ -213,15 +219,39 @@ export async function saveScrapeResultToDb(result: ScrapeResult): Promise<{ save
         }
     }
 
+    // Build a map of horse metadata from the racecard
+    const horseMetadata = new Map<string, { age?: string, sex?: string, color?: string, rating?: string, trainer?: string, owner?: string, sire?: string, dam?: string }>();
+    for (const race of result.races) {
+        for (const h of race.horses) {
+            if (!horseMetadata.has(h.horseId)) {
+                horseMetadata.set(h.horseId, {
+                    age: h.age,
+                    sex: h.sex,
+                    rating: h.rating,
+                    trainer: h.trainer
+                });
+            }
+        }
+    }
+
     for (const horse of result.horses) {
         try {
+            const meta = horseMetadata.get(horse.horseId);
+            
             // 1. Upsert Horse
             const dbHorse = await prisma.horse.upsert({
                 where: { hkjcId: horse.horseId },
-                update: { name: horse.horseName },
+                update: { 
+                    name: horse.horseName,
+                    // Only update if we have data to avoid overwriting existing profile data with nulls
+                    ...(meta?.age ? { age: meta.age } : {}),
+                    ...(meta?.sex ? { sex: meta.sex } : {})
+                },
                 create: {
                     hkjcId: horse.horseId,
-                    name: horse.horseName
+                    name: horse.horseName,
+                    age: meta?.age,
+                    sex: meta?.sex
                 }
             });
 
