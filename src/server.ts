@@ -533,7 +533,7 @@ app.get('/analysis/race/:raceId/factor/:factor', async (req, res) => {
 
         res.render('analysis-factor', {
             raceId,
-            raceNo: race?.raceNumber,
+            raceNo: race?.raceNo,
             venue: race?.venue,
             factor,
             factorName: currentFactor.name,
