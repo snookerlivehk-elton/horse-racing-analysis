@@ -476,15 +476,15 @@ app.get('/analysis/race/:raceId/factor/:factor', async (req, res) => {
 
         // Map factor to friendly name and key
         const factorMap: any = {
-            'form': { name: '往績', key: 'formScore' },
-            'jockey': { name: '騎師', key: 'jockeyScore' },
-            'trackwork': { name: '晨操', key: 'trackworkScore' },
-            'draw': { name: '檔位', key: 'drawScore' },
-            'courseDistance': { name: '路程', key: 'courseDistScore' },
-            'class': { name: '班次', key: 'classScore' },
-            'rating': { name: '評分', key: 'ratingScore' },
-            'partnership': { name: '拍檔', key: 'partnershipScore' },
-            'barrierTrial': { name: '試閘', key: 'trialScore' }
+            'form': { name: '往績', key: 'formScore', detailKey: 'form' },
+            'jockey': { name: '騎師', key: 'jockeyScore', detailKey: 'jockey' },
+            'trackwork': { name: '晨操', key: 'trackworkScore', detailKey: 'trackwork' },
+            'draw': { name: '檔位', key: 'drawScore', detailKey: 'draw' },
+            'courseDistance': { name: '路程', key: 'courseDistScore', detailKey: 'courseDist' },
+            'class': { name: '班次', key: 'classScore', detailKey: 'class' },
+            'rating': { name: '評分', key: 'ratingScore', detailKey: 'rating' },
+            'partnership': { name: '拍檔', key: 'partnershipScore', detailKey: 'partnership' },
+            'barrierTrial': { name: '試閘', key: 'trialScore', detailKey: 'trial' }
         };
 
         const currentFactor = factorMap[factor];
@@ -498,7 +498,7 @@ app.get('/analysis/race/:raceId/factor/:factor', async (req, res) => {
                 horseName: s.horseName,
                 totalScore: s.totalScore,
                 factorScore: (s.breakdown as any)[currentFactor.key],
-                details: s.breakdown.details
+                details: (s.breakdown.details as any)[currentFactor.detailKey]
             };
         }).sort((a, b) => b.factorScore - a.factorScore); // Sort by factor score
 
