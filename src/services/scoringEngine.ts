@@ -279,6 +279,7 @@ export class ScoringEngine {
                 if (!factor.enabled) continue;
 
                 let rawScore = 0;
+                let sourceValue: string | number | undefined;
 
                 // Handle Comparative Factors
                 if (key === 'time_same_dist') {
