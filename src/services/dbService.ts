@@ -167,7 +167,11 @@ export async function saveScrapeResultToDb(result: ScrapeResult): Promise<{ save
                 horseName: h.name,
                 jockey: h.jockey,
                 trainer: h.trainer,
-                rating: h.rating // Save rating
+                rating: h.rating,
+                ratingChange: h.ratingChange,
+                weight: h.weight,
+                draw: h.draw,
+                gear: h.gear
             }));
 
             if (entries.length > 0) {

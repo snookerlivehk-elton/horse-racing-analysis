@@ -149,9 +149,23 @@ app.get('/api/analysis/score/:raceId', async (req, res) => {
         const engine = new ScoringEngine();
         const scores = await engine.analyzeRace(horseIds);
 
+        // Enrich scores with race-specific data (Draw, Weight, etc.)
+        const enrichedScores = scores.map(score => {
+            const result = race?.results.find(r => r.horseName === score.horseName);
+            return {
+                ...score,
+                horseNo: result?.horseNo,
+                draw: result?.draw,
+                weight: result?.weight,
+                rating: result?.rating,
+                ratingChange: result?.ratingChange,
+                gear: result?.gear
+            };
+        });
+
         res.json({
             raceId,
-            scores
+            scores: enrichedScores
         });
 
     } catch (e: any) {

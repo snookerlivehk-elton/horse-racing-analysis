@@ -496,11 +496,17 @@
                 <table class="stats-table" style="width:100%; border-collapse: collapse;">
                     <thead>
                         <tr style="background: #333; color: #fff;">
-                            <th width="60">排名</th>
+                            <th width="50">排名</th>
+                            <th width="50">馬號</th>
                             <th style="text-align:left; padding-left: 10px;">馬匹</th>
-                            <th width="100">綜合評分</th>
-                            <th width="100">晨操分</th>
-                            <th width="100">試閘分</th>
+                            <th width="50">檔位</th>
+                            <th width="60">負磅</th>
+                            <th width="50">評分</th>
+                            <th width="60">+/-</th>
+                            <th width="60">配備</th>
+                            <th width="80">操練總分</th>
+                            <th width="80">晨操分</th>
+                            <th width="80">試閘分</th>
                             <th style="text-align:left;">詳細分析</th>
                         </tr>
                     </thead>
@@ -521,32 +527,71 @@
                 // Breakdown details
                 const trackwork = s.breakdown.trackworkScore;
                 const trial = s.breakdown.trialScore;
-                // details might be object or string, assume object from scoringEngine
-                // details: { trackwork: { score: ..., details: ... }, trial: ... }
-                // Wait, in scoringEngine: breakdown: { trackworkScore, trialScore, details: { trackwork: ..., trial: ... } }
                 
                 const twDetails = s.breakdown.details?.trackwork?.details || s.breakdown.details?.trackwork || '-';
                 
                 html += `
                     <tr style="background: ${rowBg}; border-bottom: 1px solid #444;">
                         <td style="text-align:center; font-weight:bold; font-size: 1.1em;">${rankIcon}</td>
+                        <td style="text-align:center; font-family: monospace; color: var(--accent-gold);">${s.horseNo || '-'}</td>
                         <td style="text-align:left; padding: 10px;">
                             <a href="/horse/${s.horseId}" style="color: #fff; text-decoration: none; font-weight: 500;">
                                 ${s.horseName}
                             </a>
                         </td>
+                        <td style="text-align:center;">${s.draw || '-'}</td>
+                        <td style="text-align:center;">${s.weight || '-'}</td>
+                        <td style="text-align:center;">${s.rating || '-'}</td>
+                        <td style="text-align:center; color: ${s.ratingChange?.includes('+') ? '#ef4444' : (s.ratingChange?.includes('-') ? '#10b981' : '#ccc')}">${s.ratingChange || '-'}</td>
+                        <td style="text-align:center; font-size: 0.85em;">${s.gear || '-'}</td>
                         <td style="text-align:center; font-size: 1.2em; font-weight: bold; color: ${scoreColor};">
                             ${s.totalScore}
                         </td>
                         <td style="text-align:center;">${trackwork}</td>
                         <td style="text-align:center;">${trial}</td>
                         <td style="text-align:left; font-size: 0.85em; color: #ccc; padding: 8px;">
-                            ${twDetails}
+                            ${(() => {
+                                const details = s.breakdown?.details || {};
+                                const tw = details.trackwork || {};
+                                const tr = details.trial || {};
+                                
+                                // Handle string fallback
+                                const twIsString = typeof tw === 'string';
+                                const trIsString = typeof tr === 'string';
+                                
+                                const recentTw = Array.isArray(tw.recentFastWork) ? tw.recentFastWork.join(', ') : (tw.recentFastWork || '-');
+                                const twHtml = twIsString 
+                                    ? tw 
+                                    : `<div style="margin-bottom:6px;">
+                                            <span style="color:#9dd7ff;">晨操</span>：總次數 <strong>${tw.totalWorkouts ?? '-'}</strong>，
+                                            快操 <strong>${tw.fastWorkouts ?? '-'}</strong>，
+                                            最近快操 <span style="color:#aaa;">${recentTw || '-'}</span>
+                                       </div>`;
+                                
+                                const trHtml = trIsString 
+                                    ? tr 
+                                    : `<div>
+                                            <span style="color:#ffd08a;">試閘</span>：日期 <strong>${tr.lastTrialDate ?? '-'}</strong>，
+                                            名次 <strong>${tr.rank ?? '-'}</strong>，
+                                            參賽馬數 <strong>${tr.totalHorses ?? '-'}</strong>
+                                       </div>`;
+                                
+                                return twHtml + trHtml;
+                            })()}
                         </td>
                     </tr>`;
             });
 
-            html += '</tbody></table>';
+            html += `</tbody></table>
+            <div style="margin-top: 20px; padding: 15px; background: #252525; border-radius: 6px; border: 1px solid #404040; color: #bbb; font-size: 0.9em;">
+                <h4 style="margin: 0 0 10px 0; color: var(--accent-gold);">📊 評分規則說明 (Scoring Rules)</h4>
+                <ul style="padding-left: 20px; margin: 0;">
+                    <li style="margin-bottom: 5px;"><strong>操練總分 (Total Score)</strong>: 由晨操評分 (60%) 與 試閘評分 (40%) 加權計算得出。</li>
+                    <li style="margin-bottom: 5px;"><strong>晨操評分 (Trackwork)</strong>: 根據過去 21 天內的晨操次數與強度計算。快操次數越多，且最近有快操記錄者，得分越高。</li>
+                    <li style="margin-bottom: 5px;"><strong>試閘評分 (Barrier Trial)</strong>: 根據最近試閘的排名與表現計算。排名越前，得分越高。</li>
+                    <li>此評分僅供參考，旨在量化馬匹近期的活躍程度與備戰狀態，不代表絕對勝算。</li>
+                </ul>
+            </div>`;
             container.innerHTML = html;
         }
 
@@ -577,4 +622,3 @@
     </script>
 </body>
 </html>
-

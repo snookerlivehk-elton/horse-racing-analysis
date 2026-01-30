@@ -63,6 +63,10 @@ model RaceResult {
   jockey      String?
   trainer     String?
   rating      String?  // Current rating in this race
+  ratingChange String? // Rating +/-
+  weight      String?  // Current weight
+  draw        String?  // Draw
+  gear        String?  // Gear
   
   createdAt   DateTime @default(now())
 }

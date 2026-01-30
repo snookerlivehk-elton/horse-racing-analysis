@@ -35,6 +35,8 @@ export interface RaceHorseInfo {
     draw: string;
     weight: string;
     rating: string;
+    ratingChange?: string; // New
+    gear?: string; // New
     age: string;
     sex: string;
     url: string;
@@ -660,12 +662,48 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                 break;
             }
 
+            // Find the table containing horses
+            const horseTable = horseLinks.first().closest('table');
+            
+            // Map headers to relative offsets
+            // Standard Headers: 馬號, 歷季, 排位體重, 負磅, 騎師, 練馬師, 評分, 評分+/-, 配備
+            let ratingChangeOffset = 9; // Default guess (Rating is +8, so +9)
+            let gearOffset = 11; // Default guess (After Best Time usually)
+            
+            // Try to find header row to be precise
+            let headerRow = horseTable.find('tr').first();
+            horseTable.find('tr').each((_, tr) => {
+                if ($(tr).text().includes('馬名')) {
+                    headerRow = $(tr);
+                    return false;
+                }
+            });
+
+            if (headerRow.length) {
+                let nameHeaderIdx = -1;
+                let ratingChangeHeaderIdx = -1;
+                let gearHeaderIdx = -1;
+                
+                headerRow.find('td').each((idx, td) => {
+                    const txt = $(td).text().trim();
+                    if (txt.includes('馬名')) nameHeaderIdx = idx;
+                    if (txt.includes('評分') && (txt.includes('+/-') || txt.includes('升跌'))) ratingChangeHeaderIdx = idx;
+                    if (txt.includes('配備')) gearHeaderIdx = idx;
+                });
+
+                if (nameHeaderIdx !== -1) {
+                    if (ratingChangeHeaderIdx !== -1) ratingChangeOffset = ratingChangeHeaderIdx - nameHeaderIdx;
+                    if (gearHeaderIdx !== -1) gearOffset = gearHeaderIdx - nameHeaderIdx;
+                    console.log(`Race ${i} offsets: Rating+/-=${ratingChangeOffset}, Gear=${gearOffset}`);
+                }
+            }
+
             const currentRaceHorses: RaceHorseInfo[] = [];
             
             // Iterate over table rows to capture structured data
             // Assuming standard HKJC racecard table structure
             // We find rows that contain a horse link
-            const rows = $('table tr').has('a[href*="/zh-hk/local/information/horse?horseid="]');
+            const rows = horseTable.find('tr').has('a[href*="/zh-hk/local/information/horse?horseid="]');
             
             rows.each((_, tr) => {
                 const $tr = $(tr);
@@ -683,21 +721,7 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
 
                 if (!horseId || !name || !fullUrl) return;
 
-                // Extract other columns based on position (naive but effective for static structure)
-                // Adjust indices based on observation or try to find by content
                 const tds = $tr.find('td');
-                // Usually: 0: Horse No, 1: Last 6 runs, 2: Color, 3: Name, 4: Brand, 5: Wt, 6: Jockey, 7: Over, 8: Draw, 9: Trainer...
-                // But let's be safer: get text of all TDs and map
-                const cols = tds.map((_, td) => $(td).text().trim()).get();
-                
-                // Heuristic mapping
-                // Find column with horse name -> index N
-                // No is likely N-2 or N-3
-                // Jockey is likely N+3
-                // Trainer is likely N+6
-                
-                // Let's assume standard racecard columns:
-                // 馬號(0) | ... | 馬名(3) | ... | 騎師(6) | ... | 檔位(8) | 練馬師(9) | ...
                 
                 // Verification: find index of cell containing the name
                 let nameIdx = -1;
@@ -711,25 +735,17 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                 if (nameIdx === -1) return;
 
                 // Relative positions based on observed structure (2026-01-29)
-                // Name is pivot (0)
-                // No: -3
-                // Form: -2
-                // Color: -1
-                // Brand: +1
-                // Weight: +2
-                // Jockey: +3
-                // Draw: +5
-                // Trainer: +6
-                // Rating: +8
-                // Age: +13
-                // Sex: +15
-                
                 const number = nameIdx >= 3 ? $(tds[nameIdx - 3]).text().trim() : $(tds[0]).text().trim();
                 const weight = $(tds[nameIdx + 2]).text().trim();
                 const jockey = $(tds[nameIdx + 3]).text().trim();
                 const draw = $(tds[nameIdx + 5]).text().trim();
                 const trainer = $(tds[nameIdx + 6]).text().trim();
                 const rating = $(tds[nameIdx + 8]).text().trim();
+                
+                // New Fields
+                const ratingChange = $(tds[nameIdx + ratingChangeOffset]).text().trim();
+                const gear = $(tds[nameIdx + gearOffset]).text().trim();
+
                 const age = $(tds[nameIdx + 13]).text().trim();
                 const sex = $(tds[nameIdx + 15]).text().trim();
 
@@ -744,6 +760,8 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                     trainer,
                     draw,
                     rating, 
+                    ratingChange,
+                    gear,
                     weight,
                     age,
                     sex,
