@@ -327,7 +327,7 @@ app.post('/api/scrape/trackwork', async (req, res) => {
             return res.status(400).json({ error: 'No race data available. Please scrape racecard first.' });
         }
 
-        const date = lastScrapeResult.raceDate; // YYYY/MM/DD
+        const date = lastScrapeResult.raceDate || '2026/01/01'; // Fallback if undefined
         const results = [];
 
         console.log(`Starting trackwork scrape for date: ${date}`);
