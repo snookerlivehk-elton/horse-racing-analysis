@@ -558,11 +558,11 @@
             // Chart expects chronological order (oldest -> newest)
             const chronoData = [...data].reverse();
             
-            const labels = chronoData.map(r => r.date);
-            const ranks = chronoData.map(r => {
-                const rank = parseInt(r.rank);
-                return isNaN(rank) ? null : rank;
-            });
+            // Filter out records with invalid ranks (e.g., WV, PU) to avoid gaps in the chart
+            const validData = chronoData.filter(r => !isNaN(parseInt(r.rank)));
+
+            const labels = validData.map(r => r.date);
+            const ranks = validData.map(r => parseInt(r.rank));
 
             if (chart) {
                 chart.destroy();
@@ -582,7 +582,8 @@
                         pointRadius: 4,
                         pointHoverRadius: 6,
                         tension: 0.1,
-                        fill: true
+                        fill: true,
+                        spanGaps: true // Ensure lines connect even if we missed some data points
                     }]
                 },
                 options: {
@@ -631,7 +632,7 @@
                             callbacks: {
                                 label: function(context) {
                                     const index = context.dataIndex;
-                                    const r = chronoData[index];
+                                    const r = validData[index];
                                     return `名次: ${r.rank} (場次: ${r.raceIndex}, 距離: ${r.distance})`;
                                 }
                             }
