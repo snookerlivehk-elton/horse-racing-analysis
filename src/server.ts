@@ -8,6 +8,8 @@ import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
 import { updateAllHorseProfiles } from './services/profileService';
 import { scrapeRaceTrackwork } from './services/trackworkScraper';
+import { scrapeJockeyRanking, scrapeTrainerRanking, scrapePartnershipStats } from './services/statsScraper';
+import { processMissingSectionals } from './services/sectionalScraper';
 import prisma from './lib/prisma';
 
 const app = express();
@@ -200,6 +202,115 @@ app.get('/debug', (req, res) => {
     } catch (e: any) {
         res.status(500).json({ error: e.message, stack: e.stack });
     }
+});
+
+import { DEFAULT_SCORING_CONFIG } from './constants/scoringDefaults';
+import { ScoringEngine } from './services/scoringEngine';
+
+app.get('/api/analysis/race/:raceId', async (req, res) => {
+    try {
+        const { raceId } = req.params;
+        
+        // 1. Get Config
+        let configRecord = await prisma.scoringConfig.findFirst({
+            where: { isActive: true },
+            orderBy: { createdAt: 'desc' }
+        });
+        const config = configRecord ? (configRecord.config as any) : DEFAULT_SCORING_CONFIG;
+
+        // 2. Run Engine
+        const engine = new ScoringEngine(config);
+        const scores = await engine.calculateRaceScore(raceId);
+
+        res.json({ raceId, scores });
+    } catch (e: any) {
+        console.error('Analysis API Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/analysis/race/:raceId', async (req, res) => {
+    try {
+        const { raceId } = req.params;
+
+        // Fetch Race Info for Header
+        const race = await prisma.race.findUnique({
+            where: { hkjcId: raceId }
+        });
+
+        if (!race) {
+            return res.status(404).send(`Race ${raceId} not found in DB. Please scrape first.`);
+        }
+
+        // Get Scores
+        // Reuse logic or call internal function? Calling internal is better.
+        // 1. Get Config
+        let configRecord = await prisma.scoringConfig.findFirst({
+            where: { isActive: true },
+            orderBy: { createdAt: 'desc' }
+        });
+        const config = configRecord ? (configRecord.config as any) : DEFAULT_SCORING_CONFIG;
+
+        // 2. Run Engine
+        const engine = new ScoringEngine(config);
+        const scores = await engine.calculateRaceScore(raceId);
+
+        res.render('analysis', {
+            race,
+            scores,
+            config
+        });
+
+    } catch (e: any) {
+        console.error('Analysis View Error:', e);
+        res.status(500).send(e.message);
+    }
+});
+
+app.get('/api/config/scoring', async (req, res) => {
+    try {
+        let config = await prisma.scoringConfig.findFirst({
+            where: { isActive: true },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        if (!config) {
+            config = await prisma.scoringConfig.create({
+                data: {
+                    name: "Default Config",
+                    config: DEFAULT_SCORING_CONFIG as any
+                }
+            });
+        }
+        res.json(config);
+    } catch (e: any) {
+        console.error('Config fetch error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/config/scoring', async (req, res) => {
+    try {
+        const { config, name } = req.body;
+        if (!config) return res.status(400).json({ error: "Config body required" });
+
+        const newConfig = await prisma.scoringConfig.create({
+            data: {
+                name: name || "Updated Config",
+                config: config,
+                isActive: true
+            }
+        });
+
+        res.json(newConfig);
+    } catch (e: any) {
+        console.error('Config save error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/config', (req, res) => {
+    res.render('config');
 });
 
 app.get('/api/odds', async (req, res) => {
@@ -403,6 +514,59 @@ app.post('/api/scrape/trackwork', async (req, res) => {
     }
 });
 
+// Stats Scraping Routes
+app.post('/api/scrape/stats/general', async (req, res) => {
+    try {
+        console.log('Starting General Stats Scraping...');
+        const jockeys = await scrapeJockeyRanking('Current');
+        await scrapeTrainerRanking('Current');
+        // Optionally scrape previous season too if needed
+        // await scrapeJockeyRanking('Previous');
+        // await scrapeTrainerRanking('Previous');
+        
+        res.json({ success: true, message: `Scraped stats for ${jockeys.length} jockeys and updated trainers.` });
+    } catch (e: any) {
+        console.error('General Stats Scrape Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/scrape/stats/partnership', async (req, res) => {
+    try {
+        const season = req.body.season || 'Current';
+        console.log(`Starting Partnership Stats Scraping for ${season}...`);
+        
+        // Use non-blocking in background or blocking?
+        // This is a long process. We should probably just start it and return "Started".
+        // But for simplicity in this turn, I'll await it. If it times out, client should handle.
+        // Or better, make it async fire-and-forget but log.
+        
+        // Since the user might want to know when it's done, I'll await it but with a caveat.
+        // Actually, this might take minutes.
+        // Let's await it for now as the list of jockeys isn't huge (~25 jockeys).
+        
+        await scrapePartnershipStats(season);
+        
+        res.json({ success: true, message: `Partnership stats scraping completed for ${season}` });
+    } catch (e: any) {
+        console.error('Partnership Stats Scrape Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/scrape/sectionals', async (req, res) => {
+    try {
+        console.log('Triggering Missing Sectionals Processing...');
+        // Run in background to avoid timeout
+        processMissingSectionals().catch(err => console.error('Background Sectional Scrape Error:', err));
+        
+        res.json({ success: true, message: "Sectional scraping started in background. Check server logs for progress." });
+    } catch (e: any) {
+        console.error('Sectional Scrape Trigger Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
 app.get('/scrape-data/excel', async (req, res) => {
     try {
         if (!lastScrapeResult) {
@@ -458,92 +622,6 @@ app.get('/scrape-data/excel', async (req, res) => {
     }
 });
 
-app.get('/', async (req, res) => {
-    try {
-        // 1. Get Recent Races from DB for Overview
-        const recentRaces = await prisma.race.findMany({
-            orderBy: [
-                { date: 'desc' },
-                { raceNo: 'asc' }
-            ],
-            take: 20
-        });
-
-        // Group by Date
-        const groupedRaces: Record<string, typeof recentRaces> = {};
-        recentRaces.forEach(race => {
-            if (!groupedRaces[race.date]) {
-                groupedRaces[race.date] = [];
-            }
-            groupedRaces[race.date].push(race);
-        });
-
-        // 4. Render Page
-        res.render('index', { 
-            groupedRaces, // New: Pass grouped races
-            racesCount: recentRaces.length,
-            lastUpdated: new Date().toLocaleString(),
-            serverVersion: VERSION
-        });
-
-    } catch (error: any) {
-        console.error('Error:', error);
-        res.status(500).send(`Server Error: ${error.message}`);
-    }
-});
-
-app.get('/odds', (req, res) => {
-    res.render('odds');
-});
-
-// New Route for Horse Profile
-app.get('/horse', (req, res) => {
-    // Redirect to home or show a search prompt
-    res.redirect('/'); 
-});
-
-app.get('/horse/:horseId', async (req, res) => {
-    const horseId = req.params.horseId;
-    if (!horseId) {
-        return res.status(400).send('Horse ID is required');
-    }
-
-    try {
-        // 1. Try to get from DB first
-        let profile = null;
-        try {
-            profile = await getHorseProfileFromDb(horseId);
-        } catch (dbError) {
-            console.warn(`Warning: Failed to fetch profile from DB for ${horseId}. Continuing to scrape...`, dbError);
-        }
-        
-        // 2. If not in DB or missing key info (e.g. no origin or stakes), scrape it
-        if (!profile || !profile.origin || !profile.totalStakes) {
-            console.log(`Profile for ${horseId} missing or incomplete in DB (Stakes/Origin). Scraping live...`);
-            profile = await scrapeHorseProfile(horseId);
-            // Save to DB for next time
-            try {
-                await updateHorseProfileInDb(profile);
-            } catch (dbSaveError) {
-                console.warn(`Warning: Failed to save profile to DB for ${horseId}.`, dbSaveError);
-            }
-        }
-
-        res.render('horse', {
-            horseId: horseId,
-            horseName: profile.name,
-            records: profile.records,
-            profile: profile
-        });
-    } catch (error) {
-        console.error('Error fetching horse profile:', error);
-        res.status(500).send(`Error fetching profile for horse ${horseId}: ${error instanceof Error ? error.message : String(error)}`);
-    }
-});
-
-// Serve static files
-app.use(express.static(path.join(__dirname, '../public')));
-
 app.listen(PORT, () => {
-    console.log(`Server is running at http://localhost:${PORT}`);
+    console.log(`Server is running on http://localhost:${PORT}`);
 });

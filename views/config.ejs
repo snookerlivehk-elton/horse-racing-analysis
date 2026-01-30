@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>評分模型設定 (Scoring Config)</title>
+    <style>
+        :root {
+            --bg-dark: #1a1a1a;
+            --bg-card: #2d2d2d;
+            --text-main: #e0e0e0;
+            --accent: #4CAF50;
+            --danger: #f44336;
+            --border: #404040;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+        .factor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+        .factor-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .factor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .factor-title {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .weight-input {
+            width: 60px;
+            padding: 5px;
+            background: #333;
+            border: 1px solid #555;
+            color: white;
+            text-align: right;
+        }
+        .rules-editor {
+            margin-top: 10px;
+            background: #222;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .rules-editor textarea {
+            width: 100%;
+            height: 100px;
+            background: #111;
+            color: #0f0;
+            border: 1px solid #444;
+            font-family: monospace;
+        }
+        .total-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #333;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.5);
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn-save {
+            background: var(--accent);
+            color: white;
+        }
+        .btn-normalize {
+            background: #2196F3;
+            color: white;
+            margin-right: 10px;
+        }
+        .status-ok { color: var(--accent); }
+        .status-error { color: var(--danger); }
+        
+        .nav-link {
+            color: #aaa;
+            text-decoration: none;
+            margin-right: 15px;
+        }
+        .nav-link:hover { color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <a href="/" class="nav-link">🏠 回首頁</a>
+                <h1>評分模型設定</h1>
+            </div>
+            <div id="config-meta">
+                Loading...
+            </div>
+        </header>
+
+        <div id="factor-container" class="factor-grid">
+            <!-- Factors will be injected here -->
+        </div>
+        
+        <div style="height: 80px;"></div> <!-- Spacer -->
+    </div>
+
+    <div class="total-bar">
+        <div>
+            總權重: <span id="total-weight">0</span>% 
+            <span id="weight-status"></span>
+        </div>
+        <div>
+            <button class="btn btn-normalize" onclick="normalizeWeights()">自動歸一化 (100%)</button>
+            <button class="btn btn-save" onclick="saveConfig()">儲存設定</button>
+        </div>
+    </div>
+
+    <script>
+        let currentConfig = null;
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config/scoring');
+                const data = await res.json();
+                currentConfig = data.config;
+                renderConfig();
+                document.getElementById('config-meta').innerText = `Config ID: ${data.id} (${data.name})`;
+            } catch (e) {
+                alert('Error loading config: ' + e.message);
+            }
+        }
+
+        function renderConfig() {
+            const container = document.getElementById('factor-container');
+            container.innerHTML = '';
+            
+            let total = 0;
+            
+            // Sort keys to keep order consistent? Or use array if possible. 
+            // Object keys order is generally preserved in modern JS but not guaranteed.
+            // For now, let's just iterate.
+            
+            Object.keys(currentConfig.factors).forEach(key => {
+                const factor = currentConfig.factors[key];
+                total += factor.weight;
+                
+                const card = document.createElement('div');
+                card.className = 'factor-card';
+                card.innerHTML = `
+                    <div class="factor-header">
+                        <span class="factor-title">${factor.label} (${key})</span>
+                        <div>
+                            <input type="checkbox" ${factor.enabled ? 'checked' : ''} onchange="updateFactor('${key}', 'enabled', this.checked)">
+                            <input type="number" class="weight-input" step="0.1" value="${factor.weight}" onchange="updateFactor('${key}', 'weight', parseFloat(this.value))"> %
+                        </div>
+                    </div>
+                    <div class="rules-editor">
+                        <small>計分規則 (JSON):</small>
+                        <textarea onchange="updateFactor('${key}', 'rules', this.value)">${JSON.stringify(factor.rules, null, 2)}</textarea>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            
+            updateTotalDisplay(total);
+        }
+
+        function updateFactor(key, field, value) {
+            if (field === 'rules') {
+                try {
+                    value = JSON.parse(value);
+                } catch (e) {
+                    alert('Invalid JSON format for rules');
+                    return;
+                }
+            }
+            currentConfig.factors[key][field] = value;
+            
+            // Re-calculate total if weight changed
+            if (field === 'weight') {
+                let total = 0;
+                Object.values(currentConfig.factors).forEach(f => total += f.weight);
+                updateTotalDisplay(total);
+            }
+        }
+
+        function updateTotalDisplay(total) {
+            const el = document.getElementById('total-weight');
+            const status = document.getElementById('weight-status');
+            el.innerText = total.toFixed(1);
+            
+            if (Math.abs(total - 100) < 0.1) {
+                status.innerText = "✅";
+                status.className = "status-ok";
+            } else {
+                status.innerText = "⚠️ (需為 100%)";
+                status.className = "status-error";
+            }
+        }
+
+        function normalizeWeights() {
+            let total = 0;
+            const keys = Object.keys(currentConfig.factors);
+            keys.forEach(k => total += currentConfig.factors[k].weight);
+            
+            if (total === 0) return;
+            
+            keys.forEach(k => {
+                const f = currentConfig.factors[k];
+                f.weight = parseFloat(((f.weight / total) * 100).toFixed(1));
+            });
+            
+            // Fix rounding error on the last one
+            let newTotal = 0;
+            keys.forEach(k => newTotal += currentConfig.factors[k].weight);
+            const diff = 100 - newTotal;
+            if (diff !== 0) {
+                const last = keys[keys.length - 1];
+                currentConfig.factors[last].weight += diff;
+            }
+            
+            renderConfig();
+        }
+
+        async function saveConfig() {
+            try {
+                const res = await fetch('/api/config/scoring', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: "User Updated Config",
+                        config: currentConfig
+                    })
+                });
+                
+                if (res.ok) {
+                    alert('設定已儲存！');
+                } else {
+                    const err = await res.json();
+                    alert('儲存失敗: ' + err.error);
+                }
+            } catch (e) {
+                alert('Network error: ' + e.message);
+            }
+        }
+
+        // Init
+        loadConfig();
+    </script>
+</body>
+</html>

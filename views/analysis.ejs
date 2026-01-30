@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>賽事評分分析 | <%= race.hkjcId %></title>
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #2d2d2d;
+            --text-main: #e0e0e0;
+            --accent-gold: #fbbf24;
+            --accent-green: #10b981;
+            --border: #404040;
+        }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 320px;
+            background: #111;
+            padding: 20px;
+            overflow-y: auto;
+            border-right: 1px solid var(--border);
+        }
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: var(--bg-panel);
+        }
+        h2 { color: var(--accent-gold); margin-top: 0; }
+        
+        /* Table Styles */
+        .score-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9em;
+        }
+        .score-table th, .score-table td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .score-table th {
+            background: #333;
+            position: sticky;
+            top: 0;
+        }
+        .rank-1 { color: #FFD700; font-weight: bold; }
+        .rank-2 { color: #C0C0C0; font-weight: bold; }
+        .rank-3 { color: #CD7F32; font-weight: bold; }
+        
+        /* Slider Styles */
+        .control-group {
+            margin-bottom: 15px;
+            background: #222;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .control-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        input[type=range] {
+            width: 100%;
+        }
+        .val-display {
+            color: var(--accent-green);
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Sidebar: Weight Controls -->
+    <div class="sidebar">
+        <h3>⚖️ 權重調整 (Weights)</h3>
+        <div style="margin-bottom: 10px; font-size: 0.8em; color: #888;">
+            即時調整權重以觀察排名變化。
+            <br>總權重: <span id="total-weight">100</span>%
+        </div>
+        
+        <div id="controls-container">
+            <!-- Controls injected by JS -->
+        </div>
+        
+        <button onclick="resetWeights()" style="width: 100%; padding: 10px; background: #444; color: white; border: none; margin-top: 10px; cursor: pointer;">重置為預設</button>
+    </div>
+
+    <!-- Main: Scoreboard -->
+    <div class="main-content">
+        <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div>
+                <a href="/" style="color: #aaa; text-decoration: none;">&larr; 回首頁</a>
+                <h2>賽事分析: <%= race.date %> <%= race.venue %> Race <%= race.raceNo %></h2>
+                <div style="color: #888; font-size: 0.9em;">
+                    <%= race.distance %>M | <%= race.class || 'Class ?' %> | <%= race.course || '' %>
+                </div>
+            </div>
+            <div>
+                <button onclick="window.location.reload()" style="padding: 8px 15px; background: var(--accent-gold); border: none; border-radius: 4px; cursor: pointer;">🔄 重新計算</button>
+            </div>
+        </header>
+
+        <table class="score-table">
+            <thead>
+                <tr id="table-header">
+                    <th>排名</th>
+                    <th>馬號</th>
+                    <th>馬名</th>
+                    <th>總分</th>
+                    <!-- Factor columns injected by JS -->
+                </tr>
+            </thead>
+            <tbody id="score-body">
+                <!-- Rows injected by JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // Data passed from server
+        const scores = <%- JSON.stringify(scores) %>;
+        let config = <%- JSON.stringify(config) %>;
+        const initialWeights = {};
+
+        // Init
+        function init() {
+            const controls = document.getElementById('controls-container');
+            const headerRow = document.getElementById('table-header');
+            
+            // 1. Setup Controls & Capture Initial Weights
+            // We use the breakdown keys from the first horse to know which factors are active
+            if (scores.length > 0) {
+                const keys = Object.keys(scores[0].breakdown);
+                
+                keys.forEach(key => {
+                    const factorData = scores[0].breakdown[key];
+                    const label = factorData.factorLabel;
+                    // Find weight from config
+                    const weight = config.factors[key].weight;
+                    initialWeights[key] = weight;
+
+                    // Create Slider
+                    const div = document.createElement('div');
+                    div.className = 'control-group';
+                    div.innerHTML = `
+                        <div class="control-header">
+                            <span>${label}</span>
+                            <span class="val-display" id="val-${key}">${weight}%</span>
+                        </div>
+                        <input type="range" min="0" max="50" step="0.1" value="${weight}" 
+                               oninput="updateWeight('${key}', this.value)">
+                    `;
+                    controls.appendChild(div);
+
+                    // Add Table Header Column
+                    const th = document.createElement('th');
+                    th.innerText = label.substring(0, 4); // Shorten
+                    th.title = label;
+                    headerRow.appendChild(th);
+                });
+            }
+
+            renderTable();
+            updateTotalWeight();
+        }
+
+        function updateWeight(key, val) {
+            val = parseFloat(val);
+            config.factors[key].weight = val;
+            document.getElementById(`val-${key}`).innerText = val + '%';
+            updateTotalWeight();
+            renderTable();
+        }
+
+        function updateTotalWeight() {
+            let total = 0;
+            Object.keys(scores[0].breakdown).forEach(key => {
+                total += config.factors[key].weight;
+            });
+            const el = document.getElementById('total-weight');
+            el.innerText = total.toFixed(1);
+            el.style.color = Math.abs(total - 100) < 0.5 ? '#10b981' : '#ef4444';
+        }
+
+        function resetWeights() {
+            // Reload page to reset or restore from initialWeights
+            location.reload(); 
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('score-body');
+            tbody.innerHTML = '';
+
+            // 1. Recalculate Totals
+            const calculated = scores.map(horse => {
+                let total = 0;
+                const factorScores = {};
+                
+                Object.keys(horse.breakdown).forEach(key => {
+                    const raw = horse.breakdown[key].rawScore;
+                    const weight = config.factors[key].weight;
+                    const weighted = raw * (weight / 100);
+                    total += weighted;
+                    factorScores[key] = weighted; // Store weighted for display? Or raw? Let's show Raw (Weighted)
+                });
+
+                return { ...horse, _total: total, _factorScores: factorScores };
+            });
+
+            // 2. Sort
+            calculated.sort((a, b) => b._total - a._total);
+
+            // 3. Render
+            calculated.forEach((horse, index) => {
+                const tr = document.createElement('tr');
+                
+                let rankClass = '';
+                if (index === 0) rankClass = 'rank-1';
+                if (index === 1) rankClass = 'rank-2';
+                if (index === 2) rankClass = 'rank-3';
+
+                let html = `
+                    <td class="${rankClass}">#${index + 1}</td>
+                    <td>${horse.horseNo}</td>
+                    <td style="text-align: left; padding-left: 20px;">${horse.horseName}</td>
+                    <td class="${rankClass}" style="font-size: 1.1em;">${horse._total.toFixed(2)}</td>
+                `;
+
+                // Factor Columns
+                Object.keys(horse.breakdown).forEach(key => {
+                    const raw = horse.breakdown[key].rawScore;
+                    const weighted = horse._factorScores[key];
+                    html += `
+                        <td title="Raw: ${raw}">
+                            <div style="font-size: 0.9em;">${raw}</div>
+                            <div style="font-size: 0.7em; color: #666;">(${weighted.toFixed(1)})</div>
+                        </td>
+                    `;
+                });
+
+                tr.innerHTML = html;
+                tbody.appendChild(tr);
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

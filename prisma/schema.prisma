@@ -1,5 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
   provider = "prisma-client-js"
@@ -98,82 +96,124 @@ model Horse {
   trainer      String? // Current trainer
   
   performances RacePerformance[]
-  trackworks    Trackwork[]
+  trackworks   Trackwork[]
   barrierTrials BarrierTrial[]
-
-  createdAt    DateTime           @default(now())
-  updatedAt    DateTime           @updatedAt
 }
 
+// 馬匹過往出賽紀錄 (Historical Performance)
 model RacePerformance {
-  id              String   @id @default(uuid())
-  horseId         String
-  horse           Horse    @relation(fields: [horseId], references: [id])
+  id          String   @id @default(uuid())
+  horseId     String
+  horse       Horse    @relation(fields: [horseId], references: [id])
   
-  // Scraped Fields based on HKJC Headers
-  raceIndex       String?  // 場次
-  place           String?  // 名次
-  date            String?  // 日期
-  course          String?  // 跑道 (e.g., "A", "C+3")
-  distance        String?  // 路程 (e.g., "1200")
-  venue           String?  // 場地 (e.g., "ST", "HV")
-  class           String?  // 班次 (e.g., "4")
-  draw            String?  // 檔位
-  rating          String?  // 評分
-  trainer         String?  // 練馬師
-  jockey          String?  // 騎師
-  weight          String?  // 負磅
-  winOdds         String?  // 獨贏賠率
-  actualWeight    String?  // 實際負磅
-  runningPosition String?  // 沿途走位 (e.g. "2 2 1")
-  finishTime      String?  // 完成時間
-  lbw             String?  // 頭馬距離 (LBW)
-  horseWeight     String?  // 馬匹體重
-  gear            String?  // 配備
+  raceIndex   String?  // Global Race Index (e.g. "294")
+  placing     String?  // "1", "2", "12", "WV"...
+  date        String?  // dd/mm/yy
+  venue       String?  // "ST / Turf / "C+3""
+  distance    String?  // "1200"
+  going       String?  // "G"
+  class       String?  // "4"
+  draw        String?
+  rating      String?
+  trainer     String?
+  jockey      String?
+  weight      String?
+  finishTime  String?
+  winOdds     String?
   
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  // Sectional Times (Added for Phase 2)
+  sectionalTimes Json? // Array of times/positions
+
+  // Restored fields to fix build errors
+  place           String?
+  course          String?
+  actualWeight    String?
+  lbw             String?
+  runningPosition String?
+  horseWeight     String?
+  gear            String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   @@index([horseId])
-  @@index([date])
 }
 
 model Trackwork {
   id          String   @id @default(uuid())
   horseId     String
   horse       Horse    @relation(fields: [horseId], references: [id])
-  
-  date        String   // dd/MM format usually
-  type        String   // 踱步, 快操, 游泳, 機操
-  venue       String?  // 內圈, 全天候, etc.
-  description String?  // Full description e.g. "沙田 內圈 倒快一圈 (助手)"
-  
+  date        String
+  venue       String?   // "ST", "HV"
+  type        String?   // "Gallop", "Trotting", "Swimming"
+  description String?
+  raw         String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  @@index([horseId])
-  @@index([date])
+  @@index([horseId, date])
 }
 
 model BarrierTrial {
   id          String   @id @default(uuid())
   horseId     String
   horse       Horse    @relation(fields: [horseId], references: [id])
-  
-  date        String   // dd/MM
-  location    String?  // 沙田, 從化
-  venue       String?  // 草地, 全天候
-  distance    Int?     // 1000, 1200
-  batch       String?  // 第3組
-  rank        Int?     // 1
-  totalHorses Int?     // 8
-  jockey      String?  // 布文
-  finishTime  String?  // 1.01.76
-  
-  raw         String?  // Store full raw string just in case
+  date        String
+  place       String?
+  venue       String?
+  distance    Int?
+  result      String?
+  raw         String?
+  rank        Int?
+  totalHorses Int?
+  finishTime  String?
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([horseId])
+  @@index([horseId, date])
+}
+
+// 評分模型設定 (Scoring Configuration)
+model ScoringConfig {
+  id          String   @id @default(uuid())
+  isActive    Boolean  @default(true)
+  name        String   @default("Default Config")
+  config      Json     // Stores factors, weights, and rules
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// 騎練統計數據 (Jockey/Trainer Stats)
+model PersonStats {
+  id          String   @id @default(uuid())
+  type        String   // "Jockey" or "Trainer"
+  hkjcId      String   // e.g. "BH" or "CAS"
+  name        String?  // e.g. "Bowman"
+  season      String   // "Current" or "Previous"
+  stats       Json     // { totalRuns: 100, wins: 10, places: 20, winRate: 10.0, placeRate: 30.0 }
+  updatedAt   DateTime @updatedAt
+
+  @@unique([type, hkjcId, season])
+}
+
+// 騎練合作統計 (Jockey-Trainer Partnership)
+model JockeyTrainerStats {
+  id          String   @id @default(uuid())
+  jockeyId    String   // HKJC ID e.g. "BH"
+  trainerId   String   // HKJC ID e.g. "CAS"
+  season      String   // "Current" or "Previous"
+  
+  totalRuns   Int      @default(0)
+  wins        Int      @default(0)
+  places      Int      @default(0) // 1st + 2nd + 3rd
+  
+  seconds     Int      @default(0)
+  thirds      Int      @default(0)
+  fourths     Int      @default(0)
+  fifths      Int      @default(0)
+  
+  updatedAt   DateTime @updatedAt
+
+  @@unique([jockeyId, trainerId, season])
 }

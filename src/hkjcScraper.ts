@@ -31,7 +31,9 @@ export interface RaceHorseInfo {
     name: string;
     horseId: string;
     jockey: string;
+    jockeyId?: string; // New
     trainer: string;
+    trainerId?: string; // New
     draw: string;
     weight: string;
     rating: string;
@@ -743,9 +745,21 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                 // Relative positions based on observed structure (2026-01-29)
                 const number = nameIdx >= 3 ? $(tds[nameIdx - 3]).text().trim() : $(tds[0]).text().trim();
                 const weight = $(tds[nameIdx + 2]).text().trim();
-                const jockey = $(tds[nameIdx + 3]).text().trim();
+                
+                const jockeyTd = $(tds[nameIdx + 3]);
+                const jockey = jockeyTd.text().trim();
+                const jockeyHref = jockeyTd.find('a').attr('href');
+                const jockeyIdMatch = jockeyHref?.match(/[?&]JockeyId=([^&]+)/i);
+                const jockeyId = jockeyIdMatch ? jockeyIdMatch[1] : undefined;
+
                 const draw = $(tds[nameIdx + 5]).text().trim();
-                const trainer = $(tds[nameIdx + 6]).text().trim();
+                
+                const trainerTd = $(tds[nameIdx + 6]);
+                const trainer = trainerTd.text().trim();
+                const trainerHref = trainerTd.find('a').attr('href');
+                const trainerIdMatch = trainerHref?.match(/[?&]TrainerId=([^&]+)/i);
+                const trainerId = trainerIdMatch ? trainerIdMatch[1] : undefined;
+
                 const rating = $(tds[nameIdx + 8]).text().trim();
                 
                 // New Fields

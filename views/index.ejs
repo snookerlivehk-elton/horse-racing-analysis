@@ -92,6 +92,7 @@
     <div class="nav-bar">
         <a href="/scrape-data" class="nav-btn">📊 查看馬匹詳細數據</a>
         <a href="/odds" class="nav-btn" style="background-color: var(--accent-green); color: white;">💰 實時賠率</a>
+        <a href="/config" class="nav-btn" style="background-color: var(--accent-blue); color: white;">⚙️ 評分模型設定</a>
     </div>
 
     <!-- New Race Overview Section -->
@@ -105,13 +106,19 @@
                     </h3>
                     <div style="display: flex; flex-wrap: wrap; gap: 10px;">
                         <% groupedRaces[date].forEach(race => { %>
-                            <a href="/scrape-data?date=<%= race.date.replace(/-/g, '/') %>" 
-                               style="display: inline-block; padding: 10px 15px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); text-decoration: none; border-radius: 4px; min-width: 60px; text-align: center;">
-                                第 <%= race.raceNo %> 場
-                                <div style="font-size: 0.8em; color: var(--text-muted); margin-top: 3px;">
-                                    <%= race.distance %>M
-                                </div>
-                            </a>
+                            <div style="display: inline-block; text-align: center; margin-right: 5px;">
+                                <a href="/scrape-data?date=<%= race.date.replace(/-/g, '/') %>" 
+                                   style="display: block; padding: 10px 15px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); text-decoration: none; border-radius: 4px; min-width: 60px;">
+                                    第 <%= race.raceNo %> 場
+                                    <div style="font-size: 0.8em; color: var(--text-muted); margin-top: 3px;">
+                                        <%= race.distance %>M
+                                    </div>
+                                </a>
+                                <a href="/analysis/race/<%= race.date.replace(/-/g, '') %>-<%= race.venue %>-<%= race.raceNo %>"
+                                   style="display: block; margin-top: 2px; font-size: 0.8em; color: var(--accent-gold); text-decoration: none;">
+                                   📈 分析
+                                </a>
+                            </div>
                         <% }); %>
                     </div>
                 </div>
