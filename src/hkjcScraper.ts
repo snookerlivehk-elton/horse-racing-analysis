@@ -829,7 +829,7 @@ export async function scrapeHorsePerformance(url: string, horseId: string, horse
     const html = await fetchHtml(url);
     const $ = cheerio.load(html);
 
-    let targetTable: cheerio.Cheerio | null = null;
+    let targetTable: any = null;
 
     // Robust table detection similar to scrapeHorseProfile
     $('table').each((i, table) => {
@@ -858,7 +858,7 @@ export async function scrapeHorsePerformance(url: string, horseId: string, horse
         const headerText = targetTable.find('tr').first().text();
         const isStandardTable = headerText.includes('場次') && headerText.includes('名次');
 
-        targetTable.find('tr').each((index, el) => {
+        targetTable.find('tr').each((index: number, el: any) => {
             // Skip header row
             if (index === 0) return;
             
@@ -890,7 +890,7 @@ export async function scrapeHorsePerformance(url: string, horseId: string, horse
                 
             } else {
                 // Fallback to raw extraction
-                tds.each((_, td) => {
+                tds.each((_: number, td: any) => {
                     const text = $(td).text().replace(/\s+/g, ' ').trim();
                     columns.push(text);
                 });
