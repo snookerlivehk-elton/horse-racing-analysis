@@ -427,13 +427,23 @@ app.get('/horse/:horseId', async (req, res) => {
                 await updateHorseProfileInDb(scrapedProfile);
                 // Fetch again with formatted data
                 const newHorse = await getHorseProfileFromDb(horseId);
-                return res.render('horse', { horse: newHorse });
+                return res.render('horse', { 
+                    horseName: newHorse?.name,
+                    horseId: newHorse?.id,
+                    profile: newHorse,
+                    records: newHorse?.records || []
+                });
             } catch (e) {
                 return res.status(404).send(`Horse ${horseId} not found and scrape failed.`);
             }
         }
         
-        res.render('horse', { horse });
+        res.render('horse', { 
+            horseName: horse.name,
+            horseId: horse.id,
+            profile: horse,
+            records: horse.records
+        });
     } catch (e: any) {
         console.error('Horse View Error:', e);
         res.status(500).send(e.message);
