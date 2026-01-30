@@ -244,11 +244,21 @@
                             <button class="view-btn active" onclick="toggleView('<%= index %>', 'standard', this)">排位表</button>
                             <button class="view-btn" onclick="toggleView('<%= index %>', 'stats', this)">統計資料</button>
                             <% 
-                                const rDate = (scrapeResult.raceDate || "").replace(/\//g, "");
-                                const rVenue = race.venue || "ST";
+                                // Robust Date Normalization
+                                let rDate = (scrapeResult.raceDate || "").replace(/\//g, "").replace(/-/g, "");
+                                const chineseDateMatch = (scrapeResult.raceDate || "").match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+                                if (chineseDateMatch) {
+                                    rDate = chineseDateMatch[1] + chineseDateMatch[2].padStart(2, '0') + chineseDateMatch[3].padStart(2, '0');
+                                }
+
+                                // Robust Venue Normalization
+                                let rVenue = race.venue || "ST";
+                                const venueMap = { "沙田": "ST", "跑馬地": "HV", "Happy Valley": "HV", "Sha Tin": "ST" };
+                                if (venueMap[rVenue]) rVenue = venueMap[rVenue];
+
                                 const rId = `${rDate}-${rVenue}-${race.raceNumber}`;
                             %>
-                            <button class="view-btn" onclick="toggleView('<%= index %>', 'analysis', this, '<%= rId %>')">狀態評分 🚀</button>
+                            <button class="view-btn" onclick="toggleView('<%= index %>', 'analysis', this, '<%= rId %>')">操練評分 🚀</button>
                         </div>
                     </div>
                     

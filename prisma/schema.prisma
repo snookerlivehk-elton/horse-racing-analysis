@@ -118,6 +118,8 @@ model RacePerformance {
   runningPosition String?  // 沿途走位 (e.g. "2 2 1")
   finishTime      String?  // 完成時間
   lbw             String?  // 頭馬距離 (LBW)
+  horseWeight     String?  // 馬匹體重
+  gear            String?  // 配備
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

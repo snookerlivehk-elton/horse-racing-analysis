@@ -277,21 +277,32 @@ app.get('/scrape-data', async (req, res) => {
     try {
         const date = req.query.date ? (req.query.date as string) : undefined;
         
-        // If we have a result but for a different date (not implemented yet) or no result
-        // For now just re-scrape if query date differs? 
-        // Or strictly following existing logic: if (!lastScrapeResult) scrape.
-        // But if user wants specific date, we should probably force scrape or check date.
-        // Let's just force scrape if date is provided in query, OR if no result.
-        // But simply:
+        // Strategy:
+        // 1. If date provided, force scrape (or fetch from DB for that date)
+        // 2. If no date, try memory (lastScrapeResult)
+        // 3. If memory empty, try DB (fetchLatestRaceDataFromDb)
+        // 4. If DB empty, scrape live
         
-        if (!lastScrapeResult && !lastScrapeError) {
-            try {
-                console.log(`Scraping for date (view): ${date || 'Latest'}`);
-                const result = await scrapeTodayRacecard(date);
-                lastScrapeResult = result;
+        if (date) {
+             // For now, force scrape if date is specific (TODO: Check DB first)
+             console.log(`Scraping for specific date: ${date}`);
+             lastScrapeResult = await scrapeTodayRacecard(date);
+             lastScrapeError = null;
+        } else {
+            // No date provided - Default view
+            if (!lastScrapeResult) {
+                // Try DB first
+                console.log('Memory empty, checking DB for latest race data...');
+                const dbData = await fetchLatestRaceDataFromDb();
+                if (dbData) {
+                    console.log(`Found data in DB for ${dbData.raceDate}`);
+                    lastScrapeResult = dbData;
+                } else {
+                    // DB empty, scrape live
+                    console.log('DB empty, scraping live...');
+                    lastScrapeResult = await scrapeTodayRacecard();
+                }
                 lastScrapeError = null;
-            } catch (e: any) {
-                lastScrapeError = e?.message || 'Unknown error';
             }
         }
 
@@ -555,9 +566,9 @@ app.get('/horse/:horseId', async (req, res) => {
             console.warn(`Warning: Failed to fetch profile from DB for ${horseId}. Continuing to scrape...`, dbError);
         }
         
-        // 2. If not in DB or missing key info (e.g. no origin), scrape it
-        if (!profile || !profile.origin) {
-            console.log(`Profile for ${horseId} missing or incomplete in DB. Scraping live...`);
+        // 2. If not in DB or missing key info (e.g. no origin or stakes), scrape it
+        if (!profile || !profile.origin || !profile.totalStakes) {
+            console.log(`Profile for ${horseId} missing or incomplete in DB (Stakes/Origin). Scraping live...`);
             profile = await scrapeHorseProfile(horseId);
             // Save to DB for next time
             try {
