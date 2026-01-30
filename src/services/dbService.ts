@@ -32,7 +32,11 @@ export async function getHorseProfileFromDb(horseId: string): Promise<HorseProfi
             trainer: p.trainer || '',
             jockey: p.jockey || '',
             weight: p.actualWeight || '',
-            odds: p.winOdds || ''
+            odds: p.winOdds || '',
+            runningPosition: p.runningPosition || '',
+            finishTime: p.finishTime || '',
+            horseWeight: p.horseWeight || '',
+            gear: p.gear || ''
         }));
 
         return {

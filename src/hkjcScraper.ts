@@ -116,6 +116,10 @@ export interface HorseProfileRecord {
     rating: string;
     weight: string;
     odds: string;
+    runningPosition?: string;
+    finishTime?: string;
+    horseWeight?: string;
+    gear?: string;
 }
 
 export interface HorseProfileExtended {
@@ -285,7 +289,11 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
                             trainer: $cols.eq(9).text().trim(),
                             jockey: $cols.eq(10).text().trim(),
                             weight: $cols.eq(13).text().trim(),
-                            odds: $cols.eq(12).text().trim()
+                            odds: $cols.eq(12).text().trim(),
+                            runningPosition: $cols.eq(14).text().trim(),
+                            finishTime: $cols.eq(15).text().trim(),
+                            horseWeight: $cols.eq(16).text().trim(),
+                            gear: $cols.eq(17).text().trim()
                         });
                     });
                 }
