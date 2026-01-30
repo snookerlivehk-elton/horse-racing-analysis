@@ -630,17 +630,39 @@ app.get('/', async (req, res) => {
         });
         const lastUpdated = latestRace ? latestRace.date : 'N/A';
 
+        // Fetch recent races for the overview
+        const recentRaces = await prisma.race.findMany({
+            orderBy: { date: 'desc' },
+            take: 100 // Show last 100 races (approx 10 meetings)
+        });
+
+        // Group by date
+        const groupedRaces: Record<string, any[]> = {};
+        recentRaces.forEach(race => {
+            if (!groupedRaces[race.date]) {
+                groupedRaces[race.date] = [];
+            }
+            groupedRaces[race.date].push(race);
+        });
+
+        // Sort races within each date
+        Object.keys(groupedRaces).forEach(date => {
+            groupedRaces[date].sort((a, b) => a.raceNo - b.raceNo);
+        });
+
         res.render('index', {
             racesCount,
             lastUpdated,
-            serverVersion: VERSION
+            serverVersion: VERSION,
+            groupedRaces // Pass the missing variable
         });
     } catch (e: any) {
         console.error('Root route error:', e);
         res.render('index', {
             racesCount: 0,
             lastUpdated: 'Error fetching data',
-            serverVersion: VERSION
+            serverVersion: VERSION,
+            groupedRaces: {} // Pass empty object on error to prevent view crash
         });
     }
 });
