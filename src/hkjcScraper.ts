@@ -190,11 +190,13 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
                 profileInfo.sex = parts[1]?.trim();
             } else if (text === '進口類別') {
                 profileInfo.importType = val;
-            } else if (text === '季內獎金') {
+            } else if (text.includes('季') && text.includes('獎金')) {
+                // Matches "季內獎金", "今季獎金", "今季獎金*"
                 profileInfo.seasonStakes = val;
-            } else if (text === '總獎金') {
+            } else if (text.includes('總獎金')) {
+                // Matches "總獎金", "總獎金*"
                 profileInfo.totalStakes = val;
-            } else if (text === '冠-亞-季-總出賽次數') {
+            } else if (text.includes('冠') && text.includes('亞') && text.includes('季')) {
                 profileInfo.record = val;
             } else if (text === '父系') {
                 profileInfo.sire = val;
