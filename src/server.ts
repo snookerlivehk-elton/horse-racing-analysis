@@ -327,7 +327,17 @@ app.post('/api/scrape/trackwork', async (req, res) => {
             return res.status(400).json({ error: 'No race data available. Please scrape racecard first.' });
         }
 
-        const date = lastScrapeResult.raceDate || '2026/01/01'; // Fallback if undefined
+        let date = lastScrapeResult.raceDate || '2026/01/01'; // Fallback if undefined
+        
+        // Fix Chinese date format (2026年2月1日 -> 2026/02/01)
+        if (date.includes('年')) {
+            const match = date.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
+            if (match) {
+                const [_, y, m, d] = match;
+                date = `${y}/${m.padStart(2, '0')}/${d.padStart(2, '0')}`;
+            }
+        }
+
         const results = [];
 
         console.log(`Starting trackwork scrape for date: ${date}`);
