@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
-import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo, scrapeHorseProfile, calculateDetailedStats, HorsePerformanceRow, HorseStats } from './hkjcScraper';
+import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo, scrapeHorseProfile, calculateDetailedStats, HorsePerformanceRow, HorseStats, HorseProfileExtended, HorsePerformanceRecord } from './hkjcScraper';
 import { saveScrapeResultToDb, updateHorseProfileInDb, getHorseProfileFromDb } from './services/dbService';
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
@@ -741,12 +741,36 @@ app.get('/scrape-data/excel', async (req, res) => {
 
         lastScrapeResult.horses.forEach(record => {
             const sheetData: any[][] = [];
-            sheetData.push(['Horse ID', record.horseId]);
-            sheetData.push(['Horse Name', record.horseName]);
+            
+            let horseId: string;
+            let horseName: string;
+            let dataRows: string[][] = [];
+
+            if ('records' in record) {
+                // HorseProfileExtended
+                const profile = record as HorseProfileExtended;
+                horseId = profile.id;
+                horseName = profile.name;
+                dataRows = profile.records.map(r => [
+                    r.raceIndex, r.rank, r.date, r.course, r.distance, 
+                    r.venue, r.class, r.draw, r.rating, r.trainer, 
+                    r.jockey, '-', r.odds, r.weight, 
+                    r.runningPosition || '', r.finishTime || '', r.horseWeight || '', r.gear || ''
+                ]);
+            } else {
+                // HorsePerformanceRecord
+                const perf = record as HorsePerformanceRecord;
+                horseId = perf.horseId;
+                horseName = perf.horseName;
+                dataRows = perf.rows.map(r => r.columns);
+            }
+
+            sheetData.push(['Horse ID', horseId]);
+            sheetData.push(['Horse Name', horseName]);
             sheetData.push([]);
 
             // Use precise headers
-            const maxColumns = record.rows.reduce((max, row) => Math.max(max, row.columns.length), 0);
+            const maxColumns = dataRows.reduce((max, row) => Math.max(max, row.length), 0);
             const header: string[] = [];
             for (let i = 0; i < maxColumns; i++) {
                 if (i < HKJC_HEADERS.length) {
@@ -759,12 +783,12 @@ app.get('/scrape-data/excel', async (req, res) => {
                 sheetData.push(header);
             }
 
-            record.rows.forEach(row => {
-                sheetData.push(row.columns);
+            dataRows.forEach(row => {
+                sheetData.push(row);
             });
 
             const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-            const safeName = record.horseName.replace(/[\\/?*[\]]/g, '').slice(0, 25) || record.horseId;
+            const safeName = horseName.replace(/[\\/?*[\]]/g, '').slice(0, 25) || horseId;
             XLSX.utils.book_append_sheet(workbook, sheet, safeName);
         });
 
