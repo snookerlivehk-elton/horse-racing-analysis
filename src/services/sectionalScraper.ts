@@ -1,8 +1,8 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { PrismaClient, Prisma } from '@prisma/client';
+import prisma from '../lib/prisma';
 
-const prisma = new PrismaClient();
 const BASE_URL = 'https://racing.hkjc.com/zh-hk/racing/information/results';
 
 function parseDateToUrlFormat(dateStr: string): string {
