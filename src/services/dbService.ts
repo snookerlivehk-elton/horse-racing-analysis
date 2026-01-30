@@ -22,7 +22,7 @@ export async function getHorseProfileFromDb(horseId: string): Promise<HorseProfi
         const records: HorseProfileRecord[] = horse.performances.map(p => ({
             raceIndex: p.raceIndex || '',
             rank: p.place || '',
-            date: p.raceDate || '',
+            date: p.date || '',
             distance: p.distance || '',
             venue: p.venue || '',
             class: p.class || '',
@@ -31,7 +31,7 @@ export async function getHorseProfileFromDb(horseId: string): Promise<HorseProfi
             trainer: p.trainer || '',
             jockey: p.jockey || '',
             weight: p.actualWeight || '',
-            odds: p.odds || ''
+            odds: p.winOdds || ''
         }));
 
         return {
