@@ -51,6 +51,7 @@ export interface RaceInfo {
     distance?: string;
     venue?: string;
     track?: string;
+    course?: string; // Added for A/B/C course
     surface?: string;
     location?: string; // "Sha Tin" or "Happy Valley"
     conditions?: string; // Full string like "Class 4 - 1200M - Turf"

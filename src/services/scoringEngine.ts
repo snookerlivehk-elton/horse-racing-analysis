@@ -43,7 +43,23 @@ export interface ScoringConfig {
     daysLookback: number;
 }
 
-// ... HorseScore interface ...
+export interface HorseScore {
+    horseId: string;
+    horseName: string;
+    totalScore: number;
+    breakdown: {
+        formScore: number;
+        trackworkScore: number;
+        trialScore: number;
+        jockeyScore: number;
+        partnershipScore: number;
+        drawScore: number;
+        courseDistScore: number;
+        classScore: number;
+        ratingScore: number;
+        details: any;
+    };
+}
 
 const DEFAULT_CONFIG: ScoringConfig = {
     weights: {
@@ -60,7 +76,7 @@ const DEFAULT_CONFIG: ScoringConfig = {
     subWeights: {
         form: { win: 100, place2: 80, place3: 60, place4: 40, place5_6: 20 },
         jockey: { recentFormWeight: 0.6, historyWeight: 0.4 },
-        trackwork: { fastWork: 15, slowWork: 5 },
+        trackwork: { fastWork: 15, slowWork: 5, trotWork: 10 },
         class: { dropper: 90, riser: 30, same: 50 },
         rating: { belowWin: 90, nearWin: 60, aboveWin: 30 }
     },
@@ -333,12 +349,12 @@ export class ScoringEngine {
             where: { jockey: { contains: jockey } },
             orderBy: { createdAt: 'desc' },
             take: 20,
-            select: { place: true, date: true, horseName: true, raceId: true }
+            select: { place: true, race: { select: { date: true } }, horseName: true, raceId: true }
         });
 
         let recentPoints = 0;
         let validRides = 0;
-        const recentRidesList = [];
+        const recentRidesList: any[] = [];
 
         recentRides.forEach(ride => {
             if (ride.place) {
@@ -351,7 +367,7 @@ export class ScoringEngine {
                 recentPoints += points;
                 
                 recentRidesList.push({
-                    date: ride.date,
+                    date: ride.race.date,
                     horse: ride.horseName,
                     place: ride.place,
                     points
@@ -364,7 +380,7 @@ export class ScoringEngine {
         const historyWithHorse = horseHistory.filter(h => h.jockey && h.jockey.includes(jockey));
         let historyPoints = 0;
         let validHistory = 0;
-        const historyList = [];
+        const historyList: any[] = [];
 
         historyWithHorse.forEach(h => {
             const rank = parseInt(h.place);

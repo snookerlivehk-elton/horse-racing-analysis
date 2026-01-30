@@ -10,7 +10,7 @@ import { saveScrapeResultToDb, updateHorseProfileInDb, getHorseProfileFromDb } f
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
 import { updateAllHorseProfiles } from './services/profileService';
-import { ScoringEngine, RaceContext, RaceEntryContext, ScoringConfig } from './services/scoringEngine';
+import { ScoringEngine, RaceContext, RaceEntryContext, ScoringConfig, HorseScore } from './services/scoringEngine';
 import { scrapeRaceTrackwork } from './services/trackworkScraper';
 import prisma from './lib/prisma';
 
@@ -82,12 +82,14 @@ async function fetchLatestRaceDataFromDb(): Promise<ScrapeResult | null> {
              const seasonEnd = new Date(startYear + 1, 6, 31); // July 31st
 
              return {
+                raceId: r.id,
                 raceNumber: r.raceNo,
                 venue: r.venue,
                 location: r.venue === 'HV' ? '跑馬地' : '沙田',
-                distance: '', 
-                class: '',
-                track: '',
+                distance: r.distance?.toString() || '', 
+                class: r.class || '',
+                track: r.trackType || '',
+                course: r.course || '',
                 surface: '',
                 conditions: '',
                 
@@ -328,7 +330,7 @@ app.get('/analysis/race/:raceId', async (req, res) => {
         
         if (race) {
             raceContext = {
-                course: normalizeVenue(race.venue), 
+                course: normalizeVenue(race.venue || ''), 
                 distance: race.distance || 1200, 
                 trackType: race.trackType || 'Turf',
                 courseType: race.course || undefined
@@ -435,33 +437,33 @@ app.get('/analysis/race/:raceId/factor/:factor', async (req, res) => {
         const config = parseScoringConfig(req.query);
 
         // Get scraped result
-        const scrapeResult = await dbService.getLatestScrapeResult();
+        const scrapeResult = await fetchLatestRaceDataFromDb();
         if (!scrapeResult) {
             return res.status(404).send("No race data found.");
         }
-        const race = scrapeResult.races.find(r => r.raceId === raceId);
+        const race = scrapeResult.races.find((r: any) => r.raceId === raceId);
         
         // Prepare entries (reuse logic)
         const entries: any[] = [];
         let raceContext: any = undefined;
         if (race) {
             raceContext = {
-                course: normalizeVenue(race.venue), 
-                distance: race.distance || 1200, 
-                trackType: race.trackType || 'Turf',
+                course: normalizeVenue(race.venue || ''), 
+                distance: parseInt(race.distance || '1200'), 
+                trackType: race.track || 'Turf',
                 courseType: race.course || undefined
             };
-            const names = race.results.map(r => r.horseName).filter(n => n !== null) as string[];
+            const names = race.horses.map((h: any) => h.name).filter((n: any) => n !== null) as string[];
             const horses = await prisma.horse.findMany({ where: { name: { in: names } }, select: { id: true, name: true } });
             const horseMap = new Map(horses.map(h => [h.name, h.id]));
-            race.results.forEach(r => {
-                if (r.horseName && horseMap.has(r.horseName)) {
+            race.horses.forEach((h: any) => {
+                if (h.name && horseMap.has(h.name)) {
                     entries.push({
-                        horseId: horseMap.get(r.horseName)!,
-                        jockey: r.jockey || '',
-                        trainer: r.trainer || '',
-                        draw: r.draw ? parseInt(r.draw) : undefined,
-                        rating: r.rating ? parseInt(r.rating) : undefined,
+                        horseId: horseMap.get(h.name)!,
+                        jockey: h.jockey || '',
+                        trainer: h.trainer || '',
+                        draw: h.draw ? parseInt(h.draw) : undefined,
+                        rating: h.rating ? parseInt(h.rating) : undefined,
                         class: race.class || undefined
                     });
                 }
@@ -489,10 +491,10 @@ app.get('/analysis/race/:raceId/factor/:factor', async (req, res) => {
         if (!currentFactor) return res.status(404).send("Invalid factor");
 
         // Prepare data for view
-        const factorData = scores.map(s => {
-            const result = race?.results.find(r => r.horseName === s.horseName);
+        const factorData = scores.map((s: HorseScore) => {
+            const result = race?.horses.find((h: any) => h.name === s.horseName);
             return {
-                horseNo: result?.horseNo,
+                horseNo: result?.number,
                 horseName: s.horseName,
                 totalScore: s.totalScore,
                 factorScore: (s.breakdown as any)[currentFactor.key],
@@ -532,7 +534,7 @@ app.get('/analysis/race/:raceId/factor/:factor', async (req, res) => {
 
         res.render('analysis-factor', {
             raceId,
-            raceNo: race?.raceNo,
+            raceNo: race?.raceNumber,
             venue: race?.venue,
             factor,
             factorName: currentFactor.name,
