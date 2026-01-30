@@ -198,7 +198,7 @@ app.get('/api/analysis/score/:raceId', async (req, res) => {
                 course: race.venue || 'ST', // Default to ST if venue missing
                 distance: race.distance || 1200, // Default 1200
                 trackType: race.trackType || 'Turf',
-                courseType: race.course // e.g. "Turf - A Course"
+                courseType: race.course || undefined // e.g. "Turf - A Course"
             };
 
             const names = race.results.map(r => r.horseName).filter(n => n !== null) as string[];
@@ -274,7 +274,7 @@ app.get('/analysis/race/:raceId', async (req, res) => {
                 course: race.venue || 'ST', 
                 distance: race.distance || 1200, 
                 trackType: race.trackType || 'Turf',
-                courseType: race.course 
+                courseType: race.course || undefined
             };
 
             const names = race.results.map(r => r.horseName).filter(n => n !== null) as string[];
