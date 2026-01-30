@@ -95,6 +95,35 @@
         <a href="/odds" class="nav-btn" style="background-color: var(--accent-green); color: white;">💰 實時賠率</a>
     </div>
 
+    <!-- New Race Overview Section -->
+    <div class="card">
+        <div class="card-title">📅 賽事總覽 (Race Overview)</div>
+        <% if (Object.keys(groupedRaces).length > 0) { %>
+            <% Object.keys(groupedRaces).forEach(date => { %>
+                <div style="margin-bottom: 20px;">
+                    <h3 style="color: var(--accent-gold); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">
+                        <%= date %> (<%= groupedRaces[date][0].venue %>)
+                    </h3>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        <% groupedRaces[date].forEach(race => { %>
+                            <a href="/analysis/race/<%= race.hkjcId %>" 
+                               style="display: inline-block; padding: 10px 15px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); text-decoration: none; border-radius: 4px; min-width: 60px; text-align: center;">
+                                第 <%= race.raceNo %> 場
+                                <div style="font-size: 0.8em; color: var(--text-muted); margin-top: 3px;">
+                                    <%= race.distance %>M
+                                </div>
+                            </a>
+                        <% }); %>
+                    </div>
+                </div>
+            <% }); %>
+        <% } else { %>
+            <div style="text-align: center; color: var(--text-muted); padding: 20px;">
+                暫無賽事資料。請先執行爬蟲或等待數據更新。
+            </div>
+        <% } %>
+    </div>
+
     <% results.forEach(function(item) { %>
         <div class="card">
             <div class="card-title">時間點: <%= item.timePoint %></div>

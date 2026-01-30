@@ -17,6 +17,12 @@ model Race {
   venue       String        // ST or HV
   raceNo      Int
   startTime   DateTime?
+
+  // Race Context (Added for Scoring)
+  course      String?       // e.g. "Turf - A Course"
+  distance    Int?          // e.g. 1200
+  class       String?       // e.g. "Class 4" or "4"
+  trackType   String?       // e.g. "Turf", "All Weather"
   
   // Relations
   oddsHistory OddsHistory[]

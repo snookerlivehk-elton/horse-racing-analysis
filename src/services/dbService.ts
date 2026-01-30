@@ -141,18 +141,40 @@ export async function saveScrapeResultToDb(result: ScrapeResult): Promise<{ save
 
             const raceId = `${dateStr}-${venueCode}-${race.raceNumber}`;
 
+            // Parse Distance (e.g., "1200M" -> 1200)
+            let distanceInt: number | null = null;
+            if (race.distance) {
+                const d = parseInt(race.distance.replace(/\D/g, ''));
+                if (!isNaN(d)) distanceInt = d;
+            }
+
+            // Extract Class (Simple number or string)
+            // race.class might be "Class 4"
+            let classStr = race.class;
+            if (classStr && classStr.toLowerCase().includes('class')) {
+                classStr = classStr.replace(/class/i, '').trim();
+            }
+
             const dbRace = await prisma.race.upsert({
                 where: { hkjcId: raceId },
                 update: {
                     date: result.raceDate || new Date().toISOString().slice(0, 10),
                     venue: venueCode,
-                    raceNo: race.raceNumber
+                    raceNo: race.raceNumber,
+                    course: race.conditions || race.track, // Store full conditions as course for now
+                    distance: distanceInt,
+                    class: classStr,
+                    trackType: race.track || race.surface // e.g. Turf
                 },
                 create: {
                     hkjcId: raceId,
                     date: result.raceDate || new Date().toISOString().slice(0, 10),
                     venue: venueCode,
-                    raceNo: race.raceNumber
+                    raceNo: race.raceNumber,
+                    course: race.conditions || race.track,
+                    distance: distanceInt,
+                    class: classStr,
+                    trackType: race.track || race.surface
                 }
             });
 

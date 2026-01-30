@@ -10,7 +10,7 @@ import { saveScrapeResultToDb, updateHorseProfileInDb, getHorseProfileFromDb } f
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
 import { updateAllHorseProfiles } from './services/profileService';
-import { ScoringEngine } from './services/scoringEngine';
+import { ScoringEngine, RaceContext, RaceEntryContext } from './services/scoringEngine';
 import { scrapeRaceTrackwork } from './services/trackworkScraper';
 import prisma from './lib/prisma';
 
@@ -184,51 +184,51 @@ app.get('/api/analysis/score/:raceId', async (req, res) => {
     try {
         const { raceId } = req.params;
         
-        // Find race to get horses
-        // Currently our scraping logic might not be fully linked to the 'Race' model via Relations yet
-        // depending on how scrapeTodayRacecard saves data.
-        // But assuming we can get horse IDs from the race.
-        
-        // Alternative: Pass horse IDs or just analyze all horses in the race if linked.
-        // Let's assume we want to analyze a list of horses provided in body, or fetch from Race ID.
-        
-        // For now, let's try to fetch the Race from DB and its horses (if linked via RacePerformance).
-        // If relations aren't fully set up in scraper, we might need to rely on scraping result.
-        
-        // Let's assume the user passes horse IDs for now to be flexible, or we query RaceResult/Performance.
-        // Better: Query RacePerformance for this race (if we have raceId as our DB ID).
-        
         // If raceId is HKJC format (e.g. 20260201-ST-1)
         const race = await prisma.race.findUnique({
             where: { hkjcId: raceId },
             include: { results: true }
         });
         
-        let horseIds: string[] = [];
+        let entries: RaceEntryContext[] = [];
+        let raceContext: RaceContext | undefined;
         
         if (race) {
-            // If we have results/entries
-            // We need to map horse names to Horse IDs in our DB
-            // This assumes RaceResult has horseName and we can look them up
+            raceContext = {
+                course: race.venue || 'ST', // Default to ST if venue missing
+                distance: race.distance || 1200, // Default 1200
+                trackType: race.trackType || 'Turf',
+                courseType: race.course // e.g. "Turf - A Course"
+            };
+
             const names = race.results.map(r => r.horseName).filter(n => n !== null) as string[];
             const horses = await prisma.horse.findMany({
                 where: { name: { in: names } },
-                select: { id: true }
+                select: { id: true, name: true }
             });
-            horseIds = horses.map(h => h.id);
-        } else {
-            // Fallback: If no race found (maybe not scraped into DB yet?), 
-            // accept direct list of horse IDs or names from query?
-            // For this iteration, let's just return error if race not found.
-            // OR: If we are calling this from frontend which has horse IDs.
-        }
+            
+            const horseMap = new Map(horses.map(h => [h.name, h.id]));
 
-        if (horseIds.length === 0) {
+            race.results.forEach(r => {
+                if (r.horseName && horseMap.has(r.horseName)) {
+                    entries.push({
+                        horseId: horseMap.get(r.horseName)!,
+                        jockey: r.jockey || '',
+                        trainer: r.trainer || '',
+                        draw: r.draw ? parseInt(r.draw) : undefined,
+                        rating: r.rating ? parseInt(r.rating) : undefined,
+                        class: race.class || undefined
+                    });
+                }
+            });
+        } 
+
+        if (entries.length === 0) {
              return res.status(404).json({ error: "No horses found for this race. Ensure race is scraped." });
         }
 
         const engine = new ScoringEngine();
-        const scores = await engine.analyzeRace(horseIds);
+        const scores = await engine.analyzeRace(entries, raceContext);
 
         // Enrich scores with race-specific data (Draw, Weight, etc.)
         const enrichedScores = scores.map(score => {
@@ -252,6 +252,87 @@ app.get('/api/analysis/score/:raceId', async (req, res) => {
     } catch (e: any) {
         console.error('Analysis error:', e);
         res.status(500).json({ error: e.message });
+    }
+});
+
+// View: Race Analysis Page
+app.get('/analysis/race/:raceId', async (req, res) => {
+    try {
+        const { raceId } = req.params;
+        
+        // If raceId is HKJC format (e.g. 20260201-ST-1)
+        const race = await prisma.race.findUnique({
+            where: { hkjcId: raceId },
+            include: { results: true }
+        });
+        
+        let entries: RaceEntryContext[] = [];
+        let raceContext: RaceContext | undefined;
+        
+        if (race) {
+            raceContext = {
+                course: race.venue || 'ST', 
+                distance: race.distance || 1200, 
+                trackType: race.trackType || 'Turf',
+                courseType: race.course 
+            };
+
+            const names = race.results.map(r => r.horseName).filter(n => n !== null) as string[];
+            const horses = await prisma.horse.findMany({
+                where: { name: { in: names } },
+                select: { id: true, name: true }
+            });
+            
+            const horseMap = new Map(horses.map(h => [h.name, h.id]));
+
+            race.results.forEach(r => {
+                if (r.horseName && horseMap.has(r.horseName)) {
+                    entries.push({
+                        horseId: horseMap.get(r.horseName)!,
+                        jockey: r.jockey || '',
+                        trainer: r.trainer || '',
+                        draw: r.draw ? parseInt(r.draw) : undefined,
+                        rating: r.rating ? parseInt(r.rating) : undefined,
+                        class: race.class || undefined
+                    });
+                }
+            });
+        } 
+
+        if (entries.length === 0) {
+             return res.status(404).send("No horses found for this race. Please ensure the race has been scraped.");
+        }
+
+        const engine = new ScoringEngine();
+        const scores = await engine.analyzeRace(entries, raceContext);
+
+        // Enrich scores
+        const enrichedScores = scores.map(score => {
+            const result = race?.results.find(r => r.horseName === score.horseName);
+            return {
+                ...score,
+                horseNo: result?.horseNo,
+                draw: result?.draw,
+                weight: result?.weight,
+                rating: result?.rating,
+                ratingChange: result?.ratingChange,
+                gear: result?.gear
+            };
+        });
+
+        // Render view
+        res.render('analysis', {
+            raceId,
+            raceNo: race?.raceNo || '?',
+            venue: race?.venue || 'ST',
+            distance: race?.distance || '?',
+            course: race?.course || '?',
+            scores: enrichedScores
+        });
+
+    } catch (e: any) {
+        console.error('Analysis View error:', e);
+        res.status(500).send(`Error generating analysis: ${e.message}`);
     }
 });
 
@@ -634,28 +715,42 @@ app.get('/scrape-data/excel', async (req, res) => {
 
 app.get('/', async (req, res) => {
     try {
-        // 1. 獲取數據 (目前使用 Mock)
+        // 1. Get Recent Races from DB for Overview
+        const recentRaces = await prisma.race.findMany({
+            orderBy: [
+                { date: 'desc' },
+                { raceNo: 'asc' }
+            ],
+            take: 20
+        });
+
+        // Group by Date
+        const groupedRaces: Record<string, typeof recentRaces> = {};
+        recentRaces.forEach(race => {
+            if (!groupedRaces[race.date]) {
+                groupedRaces[race.date] = [];
+            }
+            groupedRaces[race.date].push(race);
+        });
+
+        // 2. 獲取數據 (目前使用 Mock) - Keep existing trend logic for now or minimize it
         // TODO: 上線時將 useMock 改為 false，並確認 API_BASE_URL
         const useMock = true;
         const races = await fetchRaceTrends(undefined, useMock);
 
-        // 2. 分析各個時間點
+        // ... (rest of trend analysis) ...
         const timePoints: TimePoint[] = ["30'", "15'", "10'", "5'", "0'"];
         const analysisResults: { timePoint: TimePoint; stats: HitRateStats }[] = [];
-
-        // 這裡為了演示，我們只針對有數據的時間點進行分析
-        // Mock Data 目前每個時間點都有資料
         timePoints.forEach(tp => {
             const stats = analyzeHitRates(races, tp);
             analysisResults.push({ timePoint: tp, stats });
         });
-
-        // 3. 新增分析：落飛異動 & Q結構
         const moverStats: MoverStats[] = analyzeBigMovers(races);
         const quinellaStats: QuinellaStats[] = analyzeQuinellaComposition(races);
 
-        // 4. 渲染頁面
+        // 4. Render Page
         res.render('index', { 
+            groupedRaces, // New: Pass grouped races
             racesCount: races.length,
             results: analysisResults,
             moverStats,
