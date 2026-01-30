@@ -483,7 +483,8 @@ app.get('/analysis/race/:raceId/factor/:factor', async (req, res) => {
             'courseDistance': { name: '路程', key: 'courseDistScore' },
             'class': { name: '班次', key: 'classScore' },
             'rating': { name: '評分', key: 'ratingScore' },
-            'partnership': { name: '拍檔', key: 'partnershipScore' }
+            'partnership': { name: '拍檔', key: 'partnershipScore' },
+            'barrierTrial': { name: '試閘', key: 'trialScore' }
         };
 
         const currentFactor = factorMap[factor];

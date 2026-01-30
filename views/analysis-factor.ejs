@@ -208,6 +208,48 @@
                                         (現: <%= item.details.currentRating %>, 贏: <%= item.details.lastWinRating || 'NA' %>)
                                     </div>
 
+                                <% } else if (factor === 'draw') { %>
+                                    <div>
+                                        <strong>檔位: <%= item.details.draw %></strong>
+                                        <div class="text-muted small"><%= item.details.comment %></div>
+                                    </div>
+
+                                <% } else if (factor === 'courseDistance') { %>
+                                    <div>
+                                        <% if (typeof item.details === 'string') { %>
+                                            <span class="text-muted"><%= item.details %></span>
+                                        <% } else { %>
+                                            <strong>同程往績: <%= item.details.matchingRuns %> 場</strong>
+                                            <div class="small text-success">
+                                                平均分: <%= Math.round(item.details.avgPoints) %>
+                                            </div>
+                                        <% } %>
+                                    </div>
+
+                                <% } else if (factor === 'partnership') { %>
+                                    <div>
+                                        <% if (typeof item.details === 'string') { %>
+                                            <span class="text-muted"><%= item.details %></span>
+                                        <% } else { %>
+                                            <strong><%= item.details.jockey %> + <%= item.details.trainer %></strong>
+                                            <div class="small">
+                                                合作 <%= item.details.collaborations %> 場, 平均分: <%= item.details.avgScore %>
+                                            </div>
+                                        <% } %>
+                                    </div>
+
+                                <% } else if (factor === 'barrierTrial') { %>
+                                    <div>
+                                        <% if (typeof item.details === 'string') { %>
+                                            <span class="text-muted"><%= item.details %></span>
+                                        <% } else { %>
+                                            <strong>最近試閘: <%= item.details.rank %> / <%= item.details.totalHorses %></strong>
+                                            <div class="small text-muted">
+                                                日期: <%= item.details.lastTrialDate %>
+                                            </div>
+                                        <% } %>
+                                    </div>
+
                                 <% } else { %>
                                     <pre class="m-0 small"><%= JSON.stringify(item.details, null, 2) %></pre>
                                 <% } %>
