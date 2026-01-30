@@ -332,6 +332,8 @@
                             <div id="dropdown-class" class="dropdown-menu"></div>
                         </th>
 
+                        <th>檔位</th>
+
                         <!-- Jockey Filter -->
                         <th>
                             <div class="th-content" onclick="toggleDropdown(event, 'jockey')">
@@ -365,6 +367,7 @@
                             <td><%= record.distance %></td>
                             <td><%= record.venue %></td>
                             <td><%= record.class %></td>
+                            <td><%= record.draw %></td>
                             <td><%= record.jockey %></td>
                             <td><%= record.trainer %></td>
                             <td><%= record.rating %></td>
@@ -527,7 +530,7 @@
             tbody.innerHTML = '';
             
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="11" style="text-align:center; padding: 20px;">沒有符合條件的紀錄</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding: 20px;">沒有符合條件的紀錄</td></tr>';
                 return;
             }
 
@@ -540,6 +543,7 @@
                     <td>${r.distance}</td>
                     <td>${r.venue}</td>
                     <td>${r.class}</td>
+                    <td>${r.draw || '-'}</td>
                     <td>${r.jockey}</td>
                     <td>${r.trainer}</td>
                     <td>${r.rating}</td>

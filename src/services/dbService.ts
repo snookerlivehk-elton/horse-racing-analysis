@@ -25,6 +25,7 @@ export async function getHorseProfileFromDb(horseId: string): Promise<HorseProfi
             date: p.date || '',
             distance: p.distance || '',
             venue: p.venue || '',
+            course: p.course || '',
             class: p.class || '',
             draw: p.draw || '',
             rating: p.rating || '',

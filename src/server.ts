@@ -5,7 +5,7 @@ import * as XLSX from 'xlsx';
 import { fetchRaceTrends } from './apiClient';
 import { analyzeHitRates, analyzeBigMovers, analyzeQuinellaComposition } from './trendAnalysis';
 import { HitRateStats, TimePoint, MoverStats, QuinellaStats } from './types';
-import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo, scrapeHorseProfile } from './hkjcScraper';
+import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo, scrapeHorseProfile, calculateDetailedStats, HorsePerformanceRow, HorseStats } from './hkjcScraper';
 import { saveScrapeResultToDb, updateHorseProfileInDb, getHorseProfileFromDb } from './services/dbService';
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
@@ -59,33 +59,113 @@ async function fetchLatestRaceDataFromDb(): Promise<ScrapeResult | null> {
 
         if (races.length === 0) return null;
 
+        // Collect all horse names to batch fetch profiles
+        const allHorseNames = races.flatMap(r => r.results.map(res => res.horseName)).filter(n => n) as string[];
+        const horseProfiles = await prisma.horse.findMany({
+            where: { name: { in: allHorseNames } },
+            include: { performances: { orderBy: { date: 'desc' } } }
+        });
+        const horseMap = new Map(horseProfiles.map(h => [h.name, h]));
+
         // 3. Reconstruct races array
-        const reconstructedRaces = races.map(r => ({
-            raceNumber: r.raceNo,
-            venue: r.venue,
-            location: r.venue === 'HV' ? '跑馬地' : '沙田', // Simple mapping
-            horses: r.results.map(res => ({
-                number: res.horseNo.toString(),
-                name: res.horseName || '',
-                jockey: res.jockey || '',
-                trainer: res.trainer || '',
-                rating: res.rating || '0',
-                ratingChange: res.ratingChange || '',
-                horseId: '', 
-                draw: res.draw || '',
-                weight: res.weight || '',
-                gear: res.gear || '',
-                age: '',
-                sex: '',
-                url: ''
-            }))
-        }));
+        const reconstructedRaces = races.map(r => {
+             // Determine Season Dates for Stats Calculation
+             const rDate = new Date(r.date.replace(/\//g, '-')); 
+             const rYear = rDate.getFullYear();
+             const rMonth = rDate.getMonth(); // 0-11
+             
+             let startYear = rYear;
+             if (rMonth < 8) { // Jan-Aug -> start year is previous year
+                 startYear = rYear - 1;
+             }
+             const seasonStart = new Date(startYear, 8, 1); // Sept 1st
+             const seasonEnd = new Date(startYear + 1, 6, 31); // July 31st
+
+             return {
+                raceNumber: r.raceNo,
+                venue: r.venue,
+                location: r.venue === 'HV' ? '跑馬地' : '沙田',
+                distance: '', 
+                class: '',
+                track: '',
+                surface: '',
+                conditions: '',
+                
+                horses: r.results.map(res => {
+                    const horseProfile = res.horseName ? horseMap.get(res.horseName) : undefined;
+                    
+                    let stats: HorseStats | undefined = undefined;
+                    let performance = undefined;
+
+                    if (horseProfile && horseProfile.performances) {
+                         // Map to HorsePerformanceRow
+                         const rows: HorsePerformanceRow[] = horseProfile.performances.map(p => ({
+                             columns: [
+                                 p.raceIndex || '', // 0
+                                 p.place || '', // 1
+                                 p.date || '', // 2
+                                 p.course || '', // 3
+                                 p.distance || '', // 4
+                                 p.venue || '', // 5 (Going)
+                                 p.class || '', // 6
+                                 p.draw || '', // 7
+                                 p.rating || '', // 8
+                                 p.trainer || '', // 9
+                                 p.jockey || '', // 10
+                                 p.lbw || '', // 11
+                                 p.winOdds || '', // 12
+                                 p.actualWeight || '', // 13
+                                 '', '', '', '' // 14-17
+                             ]
+                         }));
+
+                         const thisRacePerf = horseProfile.performances.find(p => p.date === r.date && p.raceIndex === r.raceNo.toString());
+                         const raceClass = thisRacePerf?.class || '';
+                         const raceDist = thisRacePerf?.distance || '';
+                         
+                         stats = calculateDetailedStats(rows, {
+                             seasonStart,
+                             seasonEnd,
+                             class: raceClass,
+                             distance: raceDist,
+                             venue: r.venue === 'HV' ? '跑馬地' : '沙田', 
+                             location: r.venue === 'HV' ? '跑馬地' : '沙田',
+                             jockey: res.jockey || ''
+                         });
+
+                         performance = {
+                             horseId: horseProfile.hkjcId,
+                             horseName: horseProfile.name,
+                             rows: rows
+                         };
+                    }
+
+                    return {
+                        number: res.horseNo.toString(),
+                        name: res.horseName || '',
+                        jockey: res.jockey || '',
+                        trainer: res.trainer || '',
+                        rating: res.rating || '0',
+                        ratingChange: res.ratingChange || '',
+                        horseId: horseProfile?.hkjcId || '', 
+                        draw: res.draw || '',
+                        weight: res.weight || '',
+                        gear: res.gear || '',
+                        age: horseProfile?.age || '',
+                        sex: horseProfile?.sex || '',
+                        url: horseProfile ? `https://racing.hkjc.com/zh-hk/local/information/horse?horseId=${horseProfile.hkjcId}` : '',
+                        stats: stats,
+                        performance: performance
+                    };
+                })
+            };
+        });
 
         // 4. Return ScrapeResult
         return {
             raceDate: targetDate,
-            races: reconstructedRaces,
-            horses: [], // Not needed for Analysis page summary
+            races: reconstructedRaces as any,
+            horses: [], 
             scrapedAt: new Date().toISOString()
         };
 
@@ -172,6 +252,34 @@ app.get('/api/analysis/score/:raceId', async (req, res) => {
     } catch (e: any) {
         console.error('Analysis error:', e);
         res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/horse/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        let profile = await getHorseProfileFromDb(id);
+        
+        if (!profile) {
+            console.log(`Profile for ${id} not found in DB, scraping live...`);
+            profile = await scrapeHorseProfile(id);
+            // Save to DB in background
+            updateHorseProfileInDb(profile).catch(err => console.error('Background profile save error:', err));
+        }
+
+        if (!profile) {
+            return res.status(404).send('Horse profile not found');
+        }
+
+        res.render('horse', {
+            horseId: profile.id,
+            horseName: profile.name,
+            profile: profile,
+            serverVersion: VERSION
+        });
+    } catch (error: any) {
+        console.error(`Error loading horse profile:`, error);
+        res.status(500).send(`Error loading profile: ${error.message}`);
     }
 });
 
@@ -566,6 +674,11 @@ app.get('/odds', (req, res) => {
 });
 
 // New Route for Horse Profile
+app.get('/horse', (req, res) => {
+    // Redirect to home or show a search prompt
+    res.redirect('/'); 
+});
+
 app.get('/horse/:horseId', async (req, res) => {
     const horseId = req.params.horseId;
     if (!horseId) {

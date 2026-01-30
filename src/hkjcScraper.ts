@@ -104,7 +104,8 @@ export interface HorseProfileRecord {
     rank: string;
     date: string;
     distance: string;
-    venue: string;
+    venue: string; // This maps to "Going" (e.g. Good) in current logic
+    course: string; // Add Course (e.g. "ST / Turf")
     class: string;
     draw: string;
     jockey: string;
@@ -233,15 +234,16 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
                             raceIndex: cols[0],
                             rank: cols[1],
                             date: cols[2],
-                            venue: cols[3], // This might be combined or separate
+                            course: cols[3], // RC/Track/Course
                             distance: cols[4],
-                            class: cols[5],
-                            draw: cols[6], // 檔位 often here
-                            rating: cols[7], // or 8
-                            trainer: cols[8], // varying
-                            jockey: cols[9], // varying
-                            weight: cols[11], // varying
-                            odds: cols.length > 12 ? cols[cols.length - 1] : '-' // Odds usually last or near last
+                            venue: cols[5], // Going
+                            class: cols[6],
+                            draw: cols[7], // 檔位 often here
+                            rating: cols[8], // or 8
+                            trainer: cols[9], // varying
+                            jockey: cols[10], // varying
+                            weight: cols[13], // varying
+                            odds: cols.length > 12 ? cols[12] : '-' // Odds usually at 12
                         } as any);
                     }
                 });
@@ -250,7 +252,7 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
 
         // Refine parsing based on common HKJC layout if the above generic one is too loose
         // Standard Columns often: 
-        // 0:場次 1:名次 2:日期 3:馬場/跑道/賽道 4:路程 5:場地狀況 6:賽事班次 7:檔位 8:評分 9:練馬師 10:騎師 11:頭馬距離 12:負磅 13:獨贏賠率
+        // 0:場次 1:名次 2:日期 3:馬場/跑道/賽道 4:路程 5:場地狀況 6:賽事班次 7:檔位 8:評分 9:練馬師 10:騎師 11:頭馬距離 12:獨贏賠率 13:實際負磅
         // Let's re-map if we found a table
         if (records.length > 0) {
             // Re-map with specific indices for better accuracy
@@ -268,15 +270,16 @@ export async function scrapeHorseProfile(horseId: string): Promise<HorseProfileE
                             raceIndex: $cols.eq(0).text().trim(),
                             rank: $cols.eq(1).text().trim(),
                             date: $cols.eq(2).text().trim(),
-                            venue: $cols.eq(3).text().trim(),
+                            course: $cols.eq(3).text().trim(), // Course/Track
                             distance: $cols.eq(4).text().trim(),
-                            class: $cols.eq(6).text().trim(), // Skip condition at 5
+                            venue: $cols.eq(5).text().trim(), // Going
+                            class: $cols.eq(6).text().trim(), 
                             draw: $cols.eq(7).text().trim(),
                             rating: $cols.eq(8).text().trim(),
                             trainer: $cols.eq(9).text().trim(),
                             jockey: $cols.eq(10).text().trim(),
-                            weight: $cols.eq(12).text().trim(),
-                            odds: $cols.eq(13).text().trim()
+                            weight: $cols.eq(13).text().trim(),
+                            odds: $cols.eq(12).text().trim()
                         });
                     });
                 }
@@ -409,7 +412,7 @@ function calculateStatsFromRecords(rows: HorsePerformanceRow[]): string {
     return `${totalRuns}(${wins}-${seconds}-${thirds}-${fourths}-${fifths})`;
 }
 
-function calculateDetailedStats(
+export function calculateDetailedStats(
     records: HorsePerformanceRow[], 
     context: { 
         seasonStart: Date,
@@ -822,39 +825,85 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
     return { races, raceDate: raceDate || '' };
 }
 
-async function scrapeHorsePerformance(url: string, horseId: string, horseName: string): Promise<HorsePerformanceRecord> {
+export async function scrapeHorsePerformance(url: string, horseId: string, horseName: string): Promise<HorsePerformanceRecord> {
     const html = await fetchHtml(url);
     const $ = cheerio.load(html);
 
     let targetTable: cheerio.Cheerio | null = null;
 
-    $('table.bigborder').each((_, el) => {
-        const tableText = $(el).text();
-        if (tableText.includes('往績') || tableText.includes('賽事') || tableText.includes('名次')) {
-            targetTable = $(el);
+    // Robust table detection similar to scrapeHorseProfile
+    $('table').each((i, table) => {
+        const headerText = $(table).find('tr').first().text();
+        if (headerText.includes('場次') && headerText.includes('名次')) {
+            targetTable = $(table);
+            return false; // Break loop
         }
     });
 
     if (!targetTable) {
-        const fallback = $('table').first();
-        targetTable = fallback.length ? fallback : null;
+        // Fallback: Try looking for "BigBorder" class if generic search failed
+        $('table.bigborder').each((_, el) => {
+            const tableText = $(el).text();
+            if (tableText.includes('往績') || tableText.includes('賽事') || tableText.includes('名次')) {
+                targetTable = $(el);
+                return false;
+            }
+        });
     }
 
     const rows: HorsePerformanceRow[] = [];
 
     if (targetTable) {
+        // Check if this is a standard HKJC table to apply normalization
+        const headerText = targetTable.find('tr').first().text();
+        const isStandardTable = headerText.includes('場次') && headerText.includes('名次');
+
         targetTable.find('tr').each((index, el) => {
+            // Skip header row
             if (index === 0) return;
+            
             const tds = $(el).find('td');
-            if (tds.length === 0) return;
-            const columns: string[] = [];
-            tds.each((_, td) => {
-                const text = $(td).text().replace(/\s+/g, ' ').trim();
-                columns.push(text);
-            });
-            if (columns.filter(c => c.length > 0).length === 0) return;
-            rows.push({ columns });
+            if (tds.length < 10) return; // Basic validation
+            
+            let columns: string[] = [];
+            
+            if (isStandardTable) {
+                // Normalize columns to standard layout matching server.ts reconstruction
+                // 0:RaceIndex 1:Rank 2:Date 3:Course 4:Dist 5:Going 6:Class 7:Draw 8:Rtg 9:Tnr 10:Jky 11:LBW 12:Odds 13:Wt
+                columns[0] = tds.eq(0).text().trim(); // Race Index
+                columns[1] = tds.eq(1).text().trim(); // Rank
+                columns[2] = tds.eq(2).text().trim(); // Date
+                columns[3] = tds.eq(3).text().trim(); // Course (RC/Track/Course)
+                columns[4] = tds.eq(4).text().trim(); // Distance
+                columns[5] = tds.eq(5).text().trim(); // Going (Venue)
+                columns[6] = tds.eq(6).text().trim(); // Class
+                columns[7] = tds.eq(7).text().trim(); // Draw
+                columns[8] = tds.eq(8).text().trim(); // Rating
+                columns[9] = tds.eq(9).text().trim(); // Trainer
+                columns[10] = tds.eq(10).text().trim(); // Jockey
+                columns[11] = tds.eq(11).text().trim(); // LBW
+                columns[12] = tds.eq(12).text().trim(); // Odds
+                columns[13] = tds.eq(13).text().trim(); // Weight
+                
+                // Fill any gaps with empty string
+                for(let k=0; k<14; k++) if(columns[k] === undefined) columns[k] = '';
+                
+            } else {
+                // Fallback to raw extraction
+                tds.each((_, td) => {
+                    const text = $(td).text().replace(/\s+/g, ' ').trim();
+                    columns.push(text);
+                });
+            }
+            
+            // Further validation: ensure it looks like a record row
+            // (e.g. Column 0 should be a race index or date)
+            if (columns.filter(c => c && c.length > 0).length > 0) {
+                 rows.push({ columns });
+            }
         });
+    } else {
+        console.warn(`[scrapeHorsePerformance] Could not find performance table for ${horseName} (${horseId})`);
     }
 
     return {
