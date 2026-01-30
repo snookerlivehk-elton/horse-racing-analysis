@@ -236,79 +236,127 @@ export async function saveScrapeResultToDb(result: ScrapeResult): Promise<{ save
 
     for (const horse of result.horses) {
         try {
-            const meta = horseMetadata.get(horse.horseId);
+            // Determine type and extract ID/Name
+            const isProfile = 'records' in horse;
+            const hId = isProfile ? (horse as any).id : (horse as any).horseId;
+            const hName = isProfile ? (horse as any).name : (horse as any).horseName;
+            
+            // Get Metadata from Profile if available, else fallback to Map
+            const metaFromProfile = isProfile ? (horse as any) : {};
+            const metaFromMap = horseMetadata.get(hId);
+            
+            const finalMeta = {
+                age: metaFromProfile.age || metaFromMap?.age,
+                sex: metaFromProfile.sex || metaFromMap?.sex,
+                origin: metaFromProfile.origin,
+                color: metaFromProfile.color,
+                importType: metaFromProfile.importType,
+                seasonStakes: metaFromProfile.seasonStakes,
+                totalStakes: metaFromProfile.totalStakes,
+                record: metaFromProfile.record,
+                sire: metaFromProfile.sire,
+                dam: metaFromProfile.dam,
+                damSire: metaFromProfile.damSire,
+                owner: metaFromProfile.owner,
+                trainer: metaFromProfile.trainer || metaFromMap?.trainer
+            };
             
             // 1. Upsert Horse
             const dbHorse = await prisma.horse.upsert({
-                where: { hkjcId: horse.horseId },
+                where: { hkjcId: hId },
                 update: { 
-                    name: horse.horseName,
-                    // Only update if we have data to avoid overwriting existing profile data with nulls
-                    ...(meta?.age ? { age: meta.age } : {}),
-                    ...(meta?.sex ? { sex: meta.sex } : {})
+                    name: hName,
+                    ...(finalMeta.age ? { age: finalMeta.age } : {}),
+                    ...(finalMeta.sex ? { sex: finalMeta.sex } : {}),
+                    ...(finalMeta.origin ? { origin: finalMeta.origin } : {}),
+                    ...(finalMeta.color ? { color: finalMeta.color } : {}),
+                    ...(finalMeta.importType ? { importType: finalMeta.importType } : {}),
+                    ...(finalMeta.seasonStakes ? { seasonStakes: finalMeta.seasonStakes } : {}),
+                    ...(finalMeta.totalStakes ? { totalStakes: finalMeta.totalStakes } : {}),
+                    ...(finalMeta.record ? { record: finalMeta.record } : {}),
+                    ...(finalMeta.sire ? { sire: finalMeta.sire } : {}),
+                    ...(finalMeta.dam ? { dam: finalMeta.dam } : {}),
+                    ...(finalMeta.damSire ? { damSire: finalMeta.damSire } : {}),
+                    ...(finalMeta.owner ? { owner: finalMeta.owner } : {}),
+                    ...(finalMeta.trainer ? { trainer: finalMeta.trainer } : {})
                 },
                 create: {
-                    hkjcId: horse.horseId,
-                    name: horse.horseName,
-                    age: meta?.age,
-                    sex: meta?.sex
+                    hkjcId: hId,
+                    name: hName,
+                    age: finalMeta.age,
+                    sex: finalMeta.sex,
+                    origin: finalMeta.origin,
+                    color: finalMeta.color,
+                    importType: finalMeta.importType,
+                    seasonStakes: finalMeta.seasonStakes,
+                    totalStakes: finalMeta.totalStakes,
+                    record: finalMeta.record,
+                    sire: finalMeta.sire,
+                    dam: finalMeta.dam,
+                    damSire: finalMeta.damSire,
+                    owner: finalMeta.owner,
+                    trainer: finalMeta.trainer
                 }
             });
 
-            // 2. Insert Performances (avoid duplicates if possible, but for now we just insert)
-            // To be safe, we might want to delete old records for this horse or just append?
-            // "Upserting" performances is tricky without a unique composite key.
-            // For now, let's delete existing performances for this horse to avoid duplication on re-scrape
-            // OR we can just ignore for this MVP version. 
-            // Better approach: Check if performance exists by raceDate + raceIndex + horseId?
-            // Since we don't have a structured object yet, let's just insert all and handle duplicates later or clear old.
-            // Strategy: Clear all previous performances for this horse and re-insert (easiest for syncing)
-            
-            await prisma.racePerformance.deleteMany({
-                where: { horseId: dbHorse.id }
-            });
+            // 2. Insert Performances
+            // Map rows based on source type
+            const rows = isProfile ? (horse as any).records.map((r: any) => ({
+                 columns: [
+                    r.raceIndex, r.rank, r.date, r.course, r.distance, 
+                    r.venue, r.class, r.draw, r.rating, r.trainer, 
+                    r.jockey, '-', r.odds, r.weight, 
+                    r.runningPosition || '', r.finishTime || '', r.horseWeight || '', r.gear || ''
+                ]
+            })) : (horse as any).rows;
 
-            const performanceCreates = horse.rows.map(row => {
-                const cols = row.columns;
-                // Mapping based on HKJC_HEADERS index
-                // "場次"(0), "名次"(1), "日期"(2), "跑道/賽道"(3), "路程"(4), 
-                // "場地"(5), "班次"(6), "檔位"(7), "評分"(8), "練馬師"(9), 
-                // "騎師"(10), "頭馬距離"(11), "獨贏賠率"(12), "實際負磅"(13), 
-                // "沿途走位"(14), "完成時間"(15), "馬匹體重"(16), "配備"(17)
-
-                return {
-                    horseId: dbHorse.id,
-                    raceIndex: cols[0] || null,
-                    place: cols[1] || null,
-                    date: cols[2] || null,
-                    course: cols[3] || null,
-                    distance: cols[4] || null,
-                    venue: cols[5] || null,
-                    class: cols[6] || null,
-                    draw: cols[7] || null,
-                    rating: cols[8] || null,
-                    trainer: cols[9] || null,
-                    jockey: cols[10] || null,
-                    lbw: cols[11] || null,
-                    winOdds: cols[12] || null, 
-                    actualWeight: cols[13] || null,
-                    runningPosition: cols[14] || null,
-                    finishTime: cols[15] || null,
-                    horseWeight: cols[16] || null,
-                    gear: cols[17] || null
-                };
-            });
-
-            if (performanceCreates.length > 0) {
-                await prisma.racePerformance.createMany({
-                    data: performanceCreates
+            // Only update performances if we actually found some
+            if (rows && rows.length > 0) {
+                await prisma.racePerformance.deleteMany({
+                    where: { horseId: dbHorse.id }
                 });
+
+                const performanceCreates = rows.map((row: any) => {
+                    const cols = row.columns;
+                    // Mapping based on HKJC_HEADERS index
+                    // 0:Index 1:Rank 2:Date 3:Course 4:Dist 5:Going 6:Class 7:Draw 8:Rtg 9:Tnr 10:Jky 11:LBW 12:Odds 13:Wt 14:RP 15:Time 16:HWt 17:Gear
+                    return {
+                        horseId: dbHorse.id,
+                        raceIndex: cols[0] || null,
+                        place: cols[1] || null,
+                        date: cols[2] || null,
+                        course: cols[3] || null,
+                        distance: cols[4] || null,
+                        venue: cols[5] || null,
+                        class: cols[6] || null,
+                        draw: cols[7] || null,
+                        rating: cols[8] || null,
+                        trainer: cols[9] || null,
+                        jockey: cols[10] || null,
+                        lbw: cols[11] || null,
+                        winOdds: cols[12] || null, 
+                        actualWeight: cols[13] || null,
+                        runningPosition: cols[14] || null,
+                        finishTime: cols[15] || null,
+                        horseWeight: cols[16] || null,
+                        gear: cols[17] || null
+                    };
+                });
+
+                if (performanceCreates.length > 0) {
+                    await prisma.racePerformance.createMany({
+                        data: performanceCreates
+                    });
+                }
+            } else {
+                console.log(`Skipping performance update for ${hName} (${hId}) - no records found.`);
             }
 
             savedCount++;
         } catch (e: any) {
-            console.error(`Failed to save horse ${horse.horseId}:`, e);
-            errors.push(`Horse ${horse.horseId}: ${e.message}`);
+            const hId = 'records' in horse ? (horse as any).id : (horse as any).horseId;
+            console.error(`Failed to save horse ${hId}:`, e);
+            errors.push(`Horse ${hId}: ${e.message}`);
         }
     }
 

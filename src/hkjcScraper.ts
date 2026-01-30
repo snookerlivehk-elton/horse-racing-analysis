@@ -61,7 +61,7 @@ export interface RaceInfo {
 
 export interface ScrapeResult {
     races: RaceInfo[];
-    horses: HorsePerformanceRecord[]; // Keep flat list for backward compatibility if needed, or just derive
+    horses: (HorsePerformanceRecord | HorseProfileExtended)[]; 
     scrapedAt: string;
     raceDate?: string;
 }
@@ -698,16 +698,20 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                 }
             });
 
+            let nameHeaderIdx = -1;
+            let ratingChangeHeaderIdx = -1;
+            let gearHeaderIdx = -1;
+            let ageHeaderIdx = -1;
+            let sexHeaderIdx = -1;
+            
             if (headerRow.length) {
-                let nameHeaderIdx = -1;
-                let ratingChangeHeaderIdx = -1;
-                let gearHeaderIdx = -1;
-                
                 headerRow.find('td').each((idx, td) => {
                     const txt = $(td).text().trim();
                     if (txt.includes('馬名')) nameHeaderIdx = idx;
                     if (txt.includes('評分') && (txt.includes('+/-') || txt.includes('升跌'))) ratingChangeHeaderIdx = idx;
                     if (txt.includes('配備')) gearHeaderIdx = idx;
+                    if (txt.includes('年齡') || txt.includes('馬齡')) ageHeaderIdx = idx;
+                    if (txt.includes('性別')) sexHeaderIdx = idx;
                 });
 
                 if (nameHeaderIdx !== -1) {
@@ -777,8 +781,8 @@ export async function scrapeAllRaces(date?: string): Promise<{ races: RaceInfo[]
                 const ratingChange = $(tds[nameIdx + ratingChangeOffset]).text().trim();
                 const gear = $(tds[nameIdx + gearOffset]).text().trim();
 
-                const age = $(tds[nameIdx + 13]).text().trim();
-                const sex = $(tds[nameIdx + 15]).text().trim();
+                const age = ageHeaderIdx !== -1 ? $(tds[ageHeaderIdx]).text().trim() : $(tds[nameIdx + 13]).text().trim();
+                const sex = sexHeaderIdx !== -1 ? $(tds[sexHeaderIdx]).text().trim() : $(tds[nameIdx + 15]).text().trim();
 
                 // Trainer/Jockey might be inside links, but text() usually grabs it.
                 // Links usually just wrap the name.
@@ -972,19 +976,39 @@ export async function scrapeTodayRacecard(date?: string): Promise<ScrapeResult> 
         });
     });
 
-    const records: HorsePerformanceRecord[] = [];
+    const records: (HorsePerformanceRecord | HorseProfileExtended)[] = [];
 
     // Scrape performance for each unique horse
     for (const [horseId, info] of uniqueHorses) {
         try {
-            const record = await scrapeHorsePerformance(info.url, horseId, info.name);
-            records.push(record);
+            // Use scrapeHorseProfile to get FULL metadata + records
+            const profile = await scrapeHorseProfile(horseId);
+            records.push(profile);
             
             // Attach performance back to the race structure
             info.raceIndices.forEach(idx => {
                 const race = races[idx.r];
                 const horse = race.horses[idx.h];
-                horse.performance = record;
+                
+                // Convert HorseProfileRecord[] (from profile) to HorsePerformanceRecord (expected structure)
+                // Actually we can just assign the records
+                // But horse.performance expects HorsePerformanceRecord
+                horse.performance = {
+                    horseId: horseId,
+                    horseName: info.name,
+                    rows: profile.records.map(r => ({
+                        columns: [
+                            r.raceIndex, r.rank, r.date, r.course, r.distance, 
+                            r.venue, r.class, r.draw, r.rating, r.trainer, 
+                            r.jockey, '-', r.odds, r.weight, 
+                            r.runningPosition || '', r.finishTime || '', r.horseWeight || '', r.gear || ''
+                        ]
+                    }))
+                };
+                
+                // Update race horse metadata if missing
+                if (!horse.age && profile.age) horse.age = profile.age;
+                if (!horse.sex && profile.sex) horse.sex = profile.sex;
                 
                 // Determine Current Season Dates based on Race Date
                 // If Race Date is e.g. 2026/02/01, Season is 2025/2026
@@ -1011,7 +1035,7 @@ export async function scrapeTodayRacecard(date?: string): Promise<ScrapeResult> 
 
                 // Calculate stats from records directly
                 // Bypass HKJC stats table scraping which is unreliable
-                const stats = calculateDetailedStats(record.rows, {
+                const stats = calculateDetailedStats(horse.performance.rows, {
                     seasonStart,
                     seasonEnd,
                     class: race.class || '',
@@ -1087,12 +1111,19 @@ export function saveScrapeResultAsExcel(result: ScrapeResult, outputDir?: string
     // Individual Horse Sheets
     result.horses.forEach(record => {
         const sheetData: any[][] = [];
-        sheetData.push(['Horse ID', record.horseId]);
-        sheetData.push(['Horse Name', record.horseName]);
+        const isProfile = 'records' in record;
+        const hId = isProfile ? (record as HorseProfileExtended).id : (record as HorsePerformanceRecord).horseId;
+        const hName = isProfile ? (record as HorseProfileExtended).name : (record as HorsePerformanceRecord).horseName;
+        const rows = isProfile ? (record as HorseProfileExtended).records.map(r => ({ columns: [
+            r.raceIndex, r.rank, r.date, r.course, r.distance, r.venue, r.class, r.draw, r.rating, r.trainer, r.jockey, '-', r.odds, r.weight, r.runningPosition || '', r.finishTime || '', r.horseWeight || '', r.gear || ''
+        ] })) : (record as HorsePerformanceRecord).rows;
+
+        sheetData.push(['Horse ID', hId]);
+        sheetData.push(['Horse Name', hName]);
         sheetData.push([]);
 
         // Use precise headers, fill with generic ones if row has more columns
-        const maxColumns = record.rows.reduce((max, row) => Math.max(max, row.columns.length), 0);
+        const maxColumns = rows.reduce((max, row) => Math.max(max, row.columns.length), 0);
         const header: string[] = [];
         
         for (let i = 0; i < maxColumns; i++) {
@@ -1107,13 +1138,13 @@ export function saveScrapeResultAsExcel(result: ScrapeResult, outputDir?: string
             sheetData.push(header);
         }
 
-        record.rows.forEach(row => {
+        rows.forEach(row => {
             sheetData.push(row.columns);
         });
 
         const sheet = XLSX.utils.aoa_to_sheet(sheetData);
         // Excel sheet names limited to 31 chars
-        const safeName = record.horseName.replace(/[\\/?*[\]]/g, '').slice(0, 25) || record.horseId;
+        const safeName = hName.replace(/[\\/?*[\]]/g, '').slice(0, 25) || hId;
         
         // Ensure unique sheet names
         let uniqueSheetName = safeName;
