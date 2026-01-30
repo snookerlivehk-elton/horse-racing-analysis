@@ -243,9 +243,24 @@
                         <div style="margin-top: 10px; display: flex; gap: 10px;">
                             <button class="view-btn active" onclick="toggleView('<%= index %>', 'standard', this)">排位表</button>
                             <button class="view-btn" onclick="toggleView('<%= index %>', 'stats', this)">統計資料</button>
+                            <% 
+                                const rDate = (scrapeResult.raceDate || "").replace(/\//g, "");
+                                const rVenue = race.venue || "ST";
+                                const rId = `${rDate}-${rVenue}-${race.raceNumber}`;
+                            %>
+                            <button class="view-btn" onclick="toggleView('<%= index %>', 'analysis', this, '<%= rId %>')">狀態評分 🚀</button>
                         </div>
                     </div>
                     
+                    <!-- Analysis View -->
+                    <div id="view-analysis-<%= index %>" class="race-view" style="display: none;">
+                        <div id="analysis-content-<%= index %>">
+                            <div style="text-align:center; padding: 20px; color: #aaa;">
+                                點擊上方按鈕載入分析數據...
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Standard View -->
                     <div id="view-standard-<%= index %>" class="race-view active">
                         <table>
@@ -413,7 +428,7 @@
         }
     </style>
     <script>
-        function toggleView(raceIndex, viewType, btn) {
+        function toggleView(raceIndex, viewType, btn, raceId) {
             const container = document.getElementById(`race-${raceIndex}`);
             // Hide all views in this race
             container.querySelectorAll('.race-view').forEach(el => el.style.display = 'none');
@@ -425,6 +440,104 @@
             const btnContainer = btn.parentElement;
             btnContainer.querySelectorAll('.view-btn').forEach(el => el.classList.remove('active'));
             btn.classList.add('active');
+
+            // Load analysis if requested
+            if (viewType === 'analysis' && raceId) {
+                loadAnalysis(raceIndex, raceId);
+            }
+        }
+
+        async function loadAnalysis(raceIndex, raceId) {
+            const container = document.getElementById(`analysis-content-${raceIndex}`);
+            if (!container) return;
+            
+            // If already loaded, don't reload (unless we want refresh)
+            if (container.getAttribute('data-loaded') === 'true') return;
+
+            container.innerHTML = '<div style="text-align:center; padding: 40px;"><div style="font-size: 2em;">⏳</div><div>正在分析晨操與試閘數據...</div></div>';
+            
+            try {
+                const res = await fetch(`/api/analysis/score/${raceId}`);
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || '無法載入分析數據');
+                }
+                const data = await res.json();
+                
+                renderAnalysis(container, data.scores);
+                container.setAttribute('data-loaded', 'true');
+            } catch (e) {
+                container.innerHTML = `<div class="error">載入分析失敗: ${e.message}<br><small>請確保已爬取該場賽事且數據庫已同步</small></div>`;
+            }
+        }
+
+        function renderAnalysis(container, scores) {
+            if (!scores || scores.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding: 20px;">暫無評分數據</div>';
+                return;
+            }
+
+            // scores is array of HorseScore
+            
+            let html = `
+                <div style="margin-bottom: 15px; font-size: 0.9em; color: #aaa; text-align: right;">
+                    * 評分標準: 晨操(60%) + 試閘(40%) | 活躍度加分
+                </div>
+                <table class="stats-table" style="width:100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #333; color: #fff;">
+                            <th width="60">排名</th>
+                            <th style="text-align:left; padding-left: 10px;">馬匹</th>
+                            <th width="100">綜合評分</th>
+                            <th width="100">晨操分</th>
+                            <th width="100">試閘分</th>
+                            <th style="text-align:left;">詳細分析</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+            
+            scores.forEach((s, i) => {
+                // Color coding
+                let scoreColor = '#e0e0e0';
+                let rowBg = i % 2 === 0 ? 'var(--table-row-even)' : 'var(--table-row-odd)';
+                
+                if (s.totalScore >= 80) scoreColor = '#10b981'; // Green
+                else if (s.totalScore >= 60) scoreColor = '#fbbf24'; // Yellow
+                else if (s.totalScore < 40) scoreColor = '#ef4444'; // Red
+
+                // Icon for top 3
+                let rankIcon = i < 3 ? ['🥇','🥈','🥉'][i] : (i+1);
+
+                // Breakdown details
+                const trackwork = s.breakdown.trackworkScore;
+                const trial = s.breakdown.trialScore;
+                // details might be object or string, assume object from scoringEngine
+                // details: { trackwork: { score: ..., details: ... }, trial: ... }
+                // Wait, in scoringEngine: breakdown: { trackworkScore, trialScore, details: { trackwork: ..., trial: ... } }
+                
+                const twDetails = s.breakdown.details?.trackwork?.details || s.breakdown.details?.trackwork || '-';
+                
+                html += `
+                    <tr style="background: ${rowBg}; border-bottom: 1px solid #444;">
+                        <td style="text-align:center; font-weight:bold; font-size: 1.1em;">${rankIcon}</td>
+                        <td style="text-align:left; padding: 10px;">
+                            <a href="/horse/${s.horseId}" style="color: #fff; text-decoration: none; font-weight: 500;">
+                                ${s.horseName}
+                            </a>
+                        </td>
+                        <td style="text-align:center; font-size: 1.2em; font-weight: bold; color: ${scoreColor};">
+                            ${s.totalScore}
+                        </td>
+                        <td style="text-align:center;">${trackwork}</td>
+                        <td style="text-align:center;">${trial}</td>
+                        <td style="text-align:left; font-size: 0.85em; color: #ccc; padding: 8px;">
+                            ${twDetails}
+                        </td>
+                    </tr>`;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
         }
 
         function downloadExcel() {

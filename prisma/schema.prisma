@@ -3,6 +3,7 @@
 
 generator client {
   provider = "prisma-client-js"
+  engineType = "library"
 }
 
 datasource db {
@@ -87,6 +88,9 @@ model Horse {
   trainer      String? // Current trainer
   
   performances RacePerformance[]
+  trackworks    Trackwork[]
+  barrierTrials BarrierTrial[]
+
   createdAt    DateTime           @default(now())
   updatedAt    DateTime           @updatedAt
 }
@@ -99,25 +103,65 @@ model RacePerformance {
   // Scraped Fields based on HKJC Headers
   raceIndex       String?  // 場次
   place           String?  // 名次
-  raceDate        String?  // 日期 (kept as String to preserve original format e.g. "17/12/25")
-  course          String?  // 跑道/賽道
-  distance        String?  // 路程
-  venue           String?  // 場地
-  class           String?  // 班次
+  date            String?  // 日期
+  course          String?  // 跑道 (e.g., "A", "C+3")
+  distance        String?  // 路程 (e.g., "1200")
+  venue           String?  // 場地 (e.g., "ST", "HV")
+  class           String?  // 班次 (e.g., "4")
   draw            String?  // 檔位
   rating          String?  // 評分
   trainer         String?  // 練馬師
   jockey          String?  // 騎師
-  lbw             String?  // 頭馬距離
-  odds            String?  // 獨贏賠率
+  weight          String?  // 負磅
+  winOdds         String?  // 獨贏賠率
   actualWeight    String?  // 實際負磅
-  runningPosition String?  // 沿途走位
+  runningPosition String?  // 沿途走位 (e.g. "2 2 1")
   finishTime      String?  // 完成時間
-  horseWeight     String?  // 馬匹體重
-  gear            String?  // 配備
-
+  lbw             String?  // 頭馬距離 (LBW)
+  
   createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([horseId])
+  @@index([date])
+}
+
+model Trackwork {
+  id          String   @id @default(uuid())
+  horseId     String
+  horse       Horse    @relation(fields: [horseId], references: [id])
+  
+  date        String   // dd/MM format usually
+  type        String   // 踱步, 快操, 游泳, 機操
+  venue       String?  // 內圈, 全天候, etc.
+  description String?  // Full description e.g. "沙田 內圈 倒快一圈 (助手)"
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([horseId])
+  @@index([date])
+}
+
+model BarrierTrial {
+  id          String   @id @default(uuid())
+  horseId     String
+  horse       Horse    @relation(fields: [horseId], references: [id])
+  
+  date        String   // dd/MM
+  location    String?  // 沙田, 從化
+  venue       String?  // 草地, 全天候
+  distance    Int?     // 1000, 1200
+  batch       String?  // 第3組
+  rank        Int?     // 1
+  totalHorses Int?     // 8
+  jockey      String?  // 布文
+  finishTime  String?  // 1.01.76
+  
+  raw         String?  // Store full raw string just in case
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([horseId])
-  @@index([raceDate])
 }

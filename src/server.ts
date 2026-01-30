@@ -9,6 +9,8 @@ import { saveScrapeResultToDb, updateHorseProfileInDb, getHorseProfileFromDb } f
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
 import { updateAllHorseProfiles } from './services/profileService';
+import { ScoringEngine } from './services/scoringEngine';
+import prisma from './lib/prisma';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -38,6 +40,67 @@ let lastScrapeError: string | null = null;
 app.set('view engine', 'ejs');
 // 使用 process.cwd() 確保路徑正確，防止 __dirname 在不同環境下的差異
 app.set('views', path.join(process.cwd(), 'views'));
+
+app.get('/api/analysis/score/:raceId', async (req, res) => {
+    try {
+        const { raceId } = req.params;
+        
+        // Find race to get horses
+        // Currently our scraping logic might not be fully linked to the 'Race' model via Relations yet
+        // depending on how scrapeTodayRacecard saves data.
+        // But assuming we can get horse IDs from the race.
+        
+        // Alternative: Pass horse IDs or just analyze all horses in the race if linked.
+        // Let's assume we want to analyze a list of horses provided in body, or fetch from Race ID.
+        
+        // For now, let's try to fetch the Race from DB and its horses (if linked via RacePerformance).
+        // If relations aren't fully set up in scraper, we might need to rely on scraping result.
+        
+        // Let's assume the user passes horse IDs for now to be flexible, or we query RaceResult/Performance.
+        // Better: Query RacePerformance for this race (if we have raceId as our DB ID).
+        
+        // If raceId is HKJC format (e.g. 20260201-ST-1)
+        const race = await prisma.race.findUnique({
+            where: { hkjcId: raceId },
+            include: { results: true }
+        });
+        
+        let horseIds: string[] = [];
+        
+        if (race) {
+            // If we have results/entries
+            // We need to map horse names to Horse IDs in our DB
+            // This assumes RaceResult has horseName and we can look them up
+            const names = race.results.map(r => r.horseName).filter(n => n !== null) as string[];
+            const horses = await prisma.horse.findMany({
+                where: { name: { in: names } },
+                select: { id: true }
+            });
+            horseIds = horses.map(h => h.id);
+        } else {
+            // Fallback: If no race found (maybe not scraped into DB yet?), 
+            // accept direct list of horse IDs or names from query?
+            // For this iteration, let's just return error if race not found.
+            // OR: If we are calling this from frontend which has horse IDs.
+        }
+
+        if (horseIds.length === 0) {
+             return res.status(404).json({ error: "No horses found for this race. Ensure race is scraped." });
+        }
+
+        const engine = new ScoringEngine();
+        const scores = await engine.analyzeRace(horseIds);
+
+        res.json({
+            raceId,
+            scores
+        });
+
+    } catch (e: any) {
+        console.error('Analysis error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
 
 app.get('/debug', (req, res) => {
     const fs = require('fs');

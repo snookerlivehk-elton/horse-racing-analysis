@@ -114,6 +114,55 @@ export async function saveScrapeResultToDb(result: ScrapeResult): Promise<{ save
         return { savedCount: 0, errors: ['Database not connected'] };
     }
 
+    for (const race of result.races) {
+        try {
+            // Construct Race ID: YYYYMMDD-Venue-RaceNo
+            // raceDate format is usually YYYY/MM/DD from scraper
+            const dateStr = result.raceDate?.replace(/\//g, '') || new Date().toISOString().slice(0, 10).replace(/-/g, '');
+            const venue = race.venue || 'ST'; // Default to ST if missing
+            const raceId = `${dateStr}-${venue}-${race.raceNumber}`;
+
+            const dbRace = await prisma.race.upsert({
+                where: { hkjcId: raceId },
+                update: {
+                    date: result.raceDate || new Date().toISOString().slice(0, 10),
+                    venue: venue,
+                    raceNo: race.raceNumber
+                },
+                create: {
+                    hkjcId: raceId,
+                    date: result.raceDate || new Date().toISOString().slice(0, 10),
+                    venue: venue,
+                    raceNo: race.raceNumber
+                }
+            });
+
+            // Sync Entries (RaceResult)
+            // First, delete existing entries for this race to handle updates/scratches
+            await prisma.raceResult.deleteMany({
+                where: { raceId: dbRace.id }
+            });
+
+            const entries = race.horses.map(h => ({
+                raceId: dbRace.id,
+                horseNo: parseInt(h.number) || 0,
+                horseName: h.name,
+                jockey: h.jockey,
+                trainer: h.trainer
+            }));
+
+            if (entries.length > 0) {
+                await prisma.raceResult.createMany({
+                    data: entries
+                });
+            }
+
+        } catch (e: any) {
+            console.error(`Failed to save race ${race.raceNumber}:`, e);
+            errors.push(`Race ${race.raceNumber}: ${e.message}`);
+        }
+    }
+
     for (const horse of result.horses) {
         try {
             // 1. Upsert Horse
