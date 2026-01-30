@@ -84,6 +84,33 @@
         <a href="/" class="nav-btn">🏠 首頁</a>
         <a href="/scrape-data" class="nav-btn">📊 排位表</a>
         <a href="/analysis" class="nav-btn active">📈 深度分析</a>
+        <button id="update-trackwork-btn" class="nav-btn" style="cursor: pointer; font-size: 1rem; font-family: inherit;">🔄 更新晨操數據</button>
+    </div>
+
+    <script>
+        document.getElementById('update-trackwork-btn')?.addEventListener('click', async () => {
+            const btn = document.getElementById('update-trackwork-btn');
+            if (confirm('是否確認更新所有場次的晨操數據？這可能需要幾分鐘。')) {
+                btn.disabled = true;
+                btn.innerText = '⏳ 更新中...';
+                try {
+                    const res = await fetch('/api/scrape/trackwork', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        alert('✅ 晨操數據更新完成！\n' + data.results.map(r => `R${r.race}: ${r.count !== undefined ? r.count + ' 條紀錄' : r.error}`).join('\n'));
+                        location.reload();
+                    } else {
+                        alert('❌ 更新失敗: ' + (data.error || '未知錯誤'));
+                    }
+                } catch (e) {
+                    alert('❌ 請求錯誤: ' + e.message);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = '🔄 更新晨操數據';
+                }
+            }
+        });
+    </script>    <a href="/analysis" class="nav-btn active">📈 深度分析</a>
     </div>
 
     <% if (!hasData) { %>

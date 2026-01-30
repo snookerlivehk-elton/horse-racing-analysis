@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
@@ -10,6 +11,7 @@ import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
 import { updateAllHorseProfiles } from './services/profileService';
 import { ScoringEngine } from './services/scoringEngine';
+import { scrapeRaceTrackwork } from './services/trackworkScraper';
 import prisma from './lib/prisma';
 
 const app = express();
@@ -316,6 +318,41 @@ app.get('/analysis', (req, res) => {
 
     } catch (error: any) {
         res.status(500).send(`Analysis Error: ${error.message}`);
+    }
+});
+
+app.post('/api/scrape/trackwork', async (req, res) => {
+    try {
+        if (!lastScrapeResult || !lastScrapeResult.races) {
+            return res.status(400).json({ error: 'No race data available. Please scrape racecard first.' });
+        }
+
+        const date = lastScrapeResult.raceDate; // YYYY/MM/DD
+        const results = [];
+
+        console.log(`Starting trackwork scrape for date: ${date}`);
+
+        for (const race of lastScrapeResult.races) {
+            const venue = race.venue || 'ST'; // Default to ST if missing
+            console.log(`Scraping trackwork for Race ${race.raceNumber} (${venue})...`);
+            
+            try {
+                const count = await scrapeRaceTrackwork({
+                    date,
+                    venue, 
+                    raceNo: race.raceNumber
+                });
+                results.push({ race: race.raceNumber, count });
+            } catch (err: any) {
+                console.error(`Error scraping trackwork for Race ${race.raceNumber}:`, err);
+                results.push({ race: race.raceNumber, error: err.message });
+            }
+        }
+
+        res.json({ success: true, results });
+    } catch (e: any) {
+        console.error('Trackwork scrape error:', e);
+        res.status(500).json({ error: e.message });
     }
 });
 
