@@ -275,6 +275,7 @@ app.get('/horse/:id', async (req, res) => {
             horseId: profile.id,
             horseName: profile.name,
             profile: profile,
+            records: profile.records,
             serverVersion: VERSION
         });
     } catch (error: any) {
