@@ -622,6 +622,29 @@ app.get('/scrape-data/excel', async (req, res) => {
     }
 });
 
+app.get('/', async (req, res) => {
+    try {
+        const racesCount = await prisma.race.count();
+        const latestRace = await prisma.race.findFirst({
+            orderBy: { date: 'desc' }
+        });
+        const lastUpdated = latestRace ? latestRace.date : 'N/A';
+
+        res.render('index', {
+            racesCount,
+            lastUpdated,
+            serverVersion: VERSION
+        });
+    } catch (e: any) {
+        console.error('Root route error:', e);
+        res.render('index', {
+            racesCount: 0,
+            lastUpdated: 'Error fetching data',
+            serverVersion: VERSION
+        });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });
