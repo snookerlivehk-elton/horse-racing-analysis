@@ -84,9 +84,72 @@
         th {
             background-color: var(--table-header-bg);
             color: var(--accent-gold);
-            padding: 12px;
+            padding: 0; /* Reset padding for full-height interaction */
             text-align: left;
             font-weight: 600;
+            position: relative; /* For dropdown positioning */
+            user-select: none;
+        }
+
+        .th-content {
+            padding: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 5px;
+        }
+        .th-content:hover {
+            background-color: #404040;
+        }
+        .th-content.active-filter {
+            color: var(--accent-blue);
+            background-color: #383838;
+        }
+
+        .filter-icon {
+            font-size: 0.8em;
+            opacity: 0.5;
+        }
+        .active-filter .filter-icon {
+            opacity: 1;
+            color: var(--accent-blue);
+        }
+
+        .dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background-color: var(--bg-panel);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            min-width: 150px;
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+        }
+        .dropdown-menu.show {
+            display: block;
+        }
+
+        .dropdown-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 1px solid #333;
+            color: var(--text-main);
+            transition: background 0.2s;
+        }
+        .dropdown-item:last-child {
+            border-bottom: none;
+        }
+        .dropdown-item:hover {
+            background-color: #404040;
+        }
+        .dropdown-item.selected {
+            background-color: var(--accent-blue);
+            color: white;
         }
 
         td {
@@ -222,43 +285,6 @@
         </div>
         <% } %>
 
-        <div class="filter-bar">
-            <div class="filter-item">
-                <label>名次 (Rank)</label>
-                <select id="filter-rank" onchange="applyFilters()">
-                    <option value="">全部 (All)</option>
-                    <option value="top3">前 3 名 (Top 3)</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label>路程 (Distance)</label>
-                <select id="filter-distance" onchange="applyFilters()">
-                    <option value="">全部 (All)</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label>場地 (Venue)</label>
-                <select id="filter-venue" onchange="applyFilters()">
-                    <option value="">全部 (All)</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label>班次 (Class)</label>
-                <select id="filter-class" onchange="applyFilters()">
-                    <option value="">全部 (All)</option>
-                </select>
-            </div>
-            <div class="filter-item">
-                <label>騎師 (Jockey)</label>
-                <select id="filter-jockey" onchange="applyFilters()">
-                    <option value="">全部 (All)</option>
-                </select>
-            </div>
-            <div class="filter-item" style="justify-content: flex-end;">
-                <button onclick="resetFilters()" style="padding: 8px 16px; background: var(--accent-blue); color: white; border: none; border-radius: 4px; cursor: pointer;">重置 (Reset)</button>
-            </div>
-        </div>
-
         <div class="chart-container">
             <canvas id="performanceChart"></canvas>
         </div>
@@ -268,13 +294,60 @@
                 <thead>
                     <tr>
                         <th>場次</th>
-                        <th>名次</th>
+                        
+                        <!-- Rank Filter -->
+                        <th>
+                            <div class="th-content" onclick="toggleDropdown(event, 'rank')">
+                                名次 <span id="icon-rank" class="filter-icon">▼</span>
+                            </div>
+                            <div id="dropdown-rank" class="dropdown-menu">
+                                <div class="dropdown-item selected" onclick="setFilter('rank', '')">全部 (All)</div>
+                                <div class="dropdown-item" onclick="setFilter('rank', 'top3')">前 3 名 (Top 3)</div>
+                            </div>
+                        </th>
+
                         <th>日期</th>
-                        <th>路程</th>
-                        <th>場地</th>
-                        <th>班次</th>
-                        <th>騎師</th>
-                        <th>練馬師</th>
+
+                        <!-- Distance Filter -->
+                        <th>
+                            <div class="th-content" onclick="toggleDropdown(event, 'distance')">
+                                路程 <span id="icon-distance" class="filter-icon">▼</span>
+                            </div>
+                            <div id="dropdown-distance" class="dropdown-menu"></div>
+                        </th>
+
+                        <!-- Venue Filter -->
+                        <th>
+                            <div class="th-content" onclick="toggleDropdown(event, 'venue')">
+                                場地 <span id="icon-venue" class="filter-icon">▼</span>
+                            </div>
+                            <div id="dropdown-venue" class="dropdown-menu"></div>
+                        </th>
+
+                        <!-- Class Filter -->
+                        <th>
+                            <div class="th-content" onclick="toggleDropdown(event, 'class')">
+                                班次 <span id="icon-class" class="filter-icon">▼</span>
+                            </div>
+                            <div id="dropdown-class" class="dropdown-menu"></div>
+                        </th>
+
+                        <!-- Jockey Filter -->
+                        <th>
+                            <div class="th-content" onclick="toggleDropdown(event, 'jockey')">
+                                騎師 <span id="icon-jockey" class="filter-icon">▼</span>
+                            </div>
+                            <div id="dropdown-jockey" class="dropdown-menu"></div>
+                        </th>
+
+                        <!-- Trainer Filter -->
+                        <th>
+                            <div class="th-content" onclick="toggleDropdown(event, 'trainer')">
+                                練馬師 <span id="icon-trainer" class="filter-icon">▼</span>
+                            </div>
+                            <div id="dropdown-trainer" class="dropdown-menu"></div>
+                        </th>
+
                         <th>評分</th>
                         <th>負磅</th>
                         <th>獨贏</th>
@@ -313,9 +386,26 @@
         const ctx = document.getElementById('performanceChart').getContext('2d');
         let chart;
 
+        // Active filters state
+        const activeFilters = {
+            rank: '',
+            distance: '',
+            venue: '',
+            class: '',
+            jockey: '',
+            trainer: ''
+        };
+
         function init() {
             populateFilters();
             updateChart(allRecords);
+            
+            // Global click listener to close dropdowns
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('th')) {
+                    closeAllDropdowns();
+                }
+            });
         }
 
         function populateFilters() {
@@ -325,45 +415,100 @@
             const venues = getUnique('venue');
             const classes = getUnique('class');
             const jockeys = getUnique('jockey');
+            const trainers = getUnique('trainer');
 
-            // Helper to append options
-            const appendOpts = (id, opts) => {
-                const sel = document.getElementById(id);
-                // Keep the first "All" option
-                const firstOpt = sel.firstElementChild;
-                sel.innerHTML = '';
-                sel.appendChild(firstOpt);
+            // Helper to create dropdown items
+            const fillDropdown = (id, key, opts) => {
+                const container = document.getElementById(id);
+                // Clear but keep "All" option if it exists (for Rank hardcoded one)
+                // For dynamic ones, we recreate "All"
+                container.innerHTML = '';
+
+                // Add "All" option
+                const allItem = document.createElement('div');
+                allItem.className = 'dropdown-item selected';
+                allItem.textContent = '全部 (All)';
+                allItem.onclick = () => setFilter(key, '');
+                container.appendChild(allItem);
 
                 opts.forEach(opt => {
-                    const el = document.createElement('option');
-                    el.value = opt;
+                    const el = document.createElement('div');
+                    el.className = 'dropdown-item';
                     el.textContent = opt;
-                    sel.appendChild(el);
+                    el.onclick = () => setFilter(key, opt);
+                    container.appendChild(el);
                 });
             };
 
-            appendOpts('filter-distance', distances);
-            appendOpts('filter-venue', venues);
-            appendOpts('filter-class', classes);
-            appendOpts('filter-jockey', jockeys);
+            fillDropdown('dropdown-distance', 'distance', distances);
+            fillDropdown('dropdown-venue', 'venue', venues);
+            fillDropdown('dropdown-class', 'class', classes);
+            fillDropdown('dropdown-jockey', 'jockey', jockeys);
+            fillDropdown('dropdown-trainer', 'trainer', trainers);
+        }
+
+        function toggleDropdown(event, key) {
+            event.stopPropagation();
+            const dropdown = document.getElementById(`dropdown-${key}`);
+            const isShown = dropdown.classList.contains('show');
+            
+            closeAllDropdowns();
+            
+            if (!isShown) {
+                dropdown.classList.add('show');
+            }
+        }
+
+        function closeAllDropdowns() {
+            document.querySelectorAll('.dropdown-menu').forEach(el => el.classList.remove('show'));
+        }
+
+        function setFilter(key, value) {
+            activeFilters[key] = value;
+            
+            // Update UI
+            updateFilterUI(key, value);
+            closeAllDropdowns();
+            applyFilters();
+        }
+
+        function updateFilterUI(key, value) {
+            // Update Icon and Header Style
+            const icon = document.getElementById(`icon-${key}`);
+            const thContent = icon.parentElement;
+            
+            if (value) {
+                thContent.classList.add('active-filter');
+                icon.textContent = '★'; // Filter active icon
+            } else {
+                thContent.classList.remove('active-filter');
+                icon.textContent = '▼';
+            }
+
+            // Update Selected Item in Dropdown
+            const dropdown = document.getElementById(`dropdown-${key}`);
+            Array.from(dropdown.children).forEach(item => {
+                if ((value === '' && item.textContent.includes('全部')) || item.textContent === value) {
+                    item.classList.add('selected');
+                } else if (key === 'rank' && value === 'top3' && item.textContent.includes('Top 3')) {
+                    item.classList.add('selected');
+                } else {
+                    item.classList.remove('selected');
+                }
+            });
         }
 
         function applyFilters() {
-            const rankVal = document.getElementById('filter-rank').value;
-            const distVal = document.getElementById('filter-distance').value;
-            const venueVal = document.getElementById('filter-venue').value;
-            const classVal = document.getElementById('filter-class').value;
-            const jockeyVal = document.getElementById('filter-jockey').value;
-
             const filtered = allRecords.filter(r => {
-                if (rankVal === 'top3') {
+                if (activeFilters.rank === 'top3') {
                     const rank = parseInt(r.rank);
                     if (isNaN(rank) || rank > 3) return false;
                 }
-                if (distVal && r.distance !== distVal) return false;
-                if (venueVal && r.venue !== venueVal) return false;
-                if (classVal && r.class !== classVal) return false;
-                if (jockeyVal && r.jockey !== jockeyVal) return false;
+                if (activeFilters.distance && r.distance !== activeFilters.distance) return false;
+                if (activeFilters.venue && r.venue !== activeFilters.venue) return false;
+                if (activeFilters.class && r.class !== activeFilters.class) return false;
+                if (activeFilters.jockey && r.jockey !== activeFilters.jockey) return false;
+                if (activeFilters.trainer && r.trainer !== activeFilters.trainer) return false;
                 return true;
             });
 
@@ -372,12 +517,9 @@
         }
 
         function resetFilters() {
-            document.getElementById('filter-rank').value = "";
-            document.getElementById('filter-distance').value = "";
-            document.getElementById('filter-venue').value = "";
-            document.getElementById('filter-class').value = "";
-            document.getElementById('filter-jockey').value = "";
-            applyFilters();
+            Object.keys(activeFilters).forEach(key => {
+                setFilter(key, '');
+            });
         }
 
         function renderTable(data) {
