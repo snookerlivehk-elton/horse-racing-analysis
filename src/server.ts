@@ -2,13 +2,12 @@ import 'dotenv/config';
 import express from 'express';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
-import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo, scrapeHorseProfile, calculateDetailedStats, HorsePerformanceRow, HorseStats, HorseProfileExtended, HorsePerformanceRecord } from './hkjcScraper';
+import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo, scrapeHorseProfile, HorsePerformanceRow, HorseProfileExtended, HorsePerformanceRecord } from './hkjcScraper';
 import { saveScrapeResultToDb, updateHorseProfileInDb, getHorseProfileFromDb } from './services/dbService';
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
 import { updateAllHorseProfiles } from './services/profileService';
 import { scrapeRaceTrackwork } from './services/trackworkScraper';
-import { scrapeJockeyRanking, scrapeTrainerRanking, scrapePartnershipStats } from './services/statsScraper';
 import { processMissingSectionals } from './services/sectionalScraper';
 import prisma from './lib/prisma';
 
@@ -67,18 +66,6 @@ async function fetchLatestRaceDataFromDb(): Promise<ScrapeResult | null> {
 
         // 3. Reconstruct races array
         const reconstructedRaces = races.map(r => {
-             // Determine Season Dates for Stats Calculation
-             const rDate = new Date(r.date.replace(/\//g, '-')); 
-             const rYear = rDate.getFullYear();
-             const rMonth = rDate.getMonth(); // 0-11
-             
-             let startYear = rYear;
-             if (rMonth < 8) { // Jan-Aug -> start year is previous year
-                 startYear = rYear - 1;
-             }
-             const seasonStart = new Date(startYear, 8, 1); // Sept 1st
-             const seasonEnd = new Date(startYear + 1, 6, 31); // July 31st
-
              return {
                 raceId: r.id,
                 raceNumber: r.raceNo,
@@ -94,7 +81,6 @@ async function fetchLatestRaceDataFromDb(): Promise<ScrapeResult | null> {
                 horses: r.results.map(res => {
                     const horseProfile = res.horseName ? horseMap.get(res.horseName) : undefined;
                     
-                    let stats: HorseStats | undefined = undefined;
                     let performance = undefined;
 
                     if (horseProfile && horseProfile.performances) {
@@ -119,20 +105,6 @@ async function fetchLatestRaceDataFromDb(): Promise<ScrapeResult | null> {
                              ]
                          }));
 
-                         const thisRacePerf = horseProfile.performances.find(p => p.date === r.date && p.raceIndex === r.raceNo.toString());
-                         const raceClass = thisRacePerf?.class || '';
-                         const raceDist = thisRacePerf?.distance || '';
-                         
-                         stats = calculateDetailedStats(rows, {
-                             seasonStart,
-                             seasonEnd,
-                             class: raceClass,
-                             distance: raceDist,
-                             venue: r.venue === 'HV' ? '跑馬地' : '沙田', 
-                             location: r.venue === 'HV' ? '跑馬地' : '沙田',
-                             jockey: res.jockey || ''
-                         });
-
                          performance = {
                              horseId: horseProfile.hkjcId,
                              horseName: horseProfile.name,
@@ -154,7 +126,6 @@ async function fetchLatestRaceDataFromDb(): Promise<ScrapeResult | null> {
                         age: horseProfile?.age || '',
                         sex: horseProfile?.sex || '',
                         url: horseProfile ? `https://racing.hkjc.com/zh-hk/local/information/horse?horseId=${horseProfile.hkjcId}` : '',
-                        stats: stats,
                         performance: performance
                     };
                 })
@@ -202,213 +173,6 @@ app.get('/debug', (req, res) => {
     } catch (e: any) {
         res.status(500).json({ error: e.message, stack: e.stack });
     }
-});
-
-import { DEFAULT_SCORING_CONFIG } from './constants/scoringDefaults';
-import { ScoringEngine } from './services/scoringEngine';
-
-app.get('/api/analysis/race/:raceId', async (req, res) => {
-    try {
-        const { raceId } = req.params;
-        
-        // 1. Get Config
-        let configRecord = await prisma.scoringConfig.findFirst({
-            where: { isActive: true },
-            orderBy: { createdAt: 'desc' }
-        });
-        const config = configRecord ? (configRecord.config as any) : DEFAULT_SCORING_CONFIG;
-
-        // 2. Run Engine
-        const engine = new ScoringEngine(config);
-        const scores = await engine.calculateRaceScore(raceId);
-
-        res.json({ raceId, scores });
-    } catch (e: any) {
-        console.error('Analysis API Error:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Save Manual Adjustment
-app.post('/api/scoring/adjust', async (req, res) => {
-    try {
-        const { raceId, horseNo, conditionScore, manualPoints } = req.body;
-        
-        if (!raceId || horseNo === undefined) {
-            return res.status(400).json({ error: "Missing raceId or horseNo" });
-        }
-
-        const adjustment = await prisma.raceScoringAdjustment.upsert({
-            where: {
-                raceId_horseNo: {
-                    raceId: raceId,
-                    horseNo: parseInt(horseNo)
-                }
-            },
-            update: {
-                conditionScore: conditionScore !== undefined ? parseFloat(conditionScore) : undefined,
-                manualPoints: manualPoints !== undefined ? parseFloat(manualPoints) : undefined
-            },
-            create: {
-                raceId: raceId,
-                horseNo: parseInt(horseNo),
-                conditionScore: conditionScore !== undefined ? parseFloat(conditionScore) : undefined,
-                manualPoints: manualPoints !== undefined ? parseFloat(manualPoints) : undefined
-            }
-        });
-
-        res.json({ success: true, adjustment });
-    } catch (e: any) {
-        console.error('Adjustment save error:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Export Analysis Results to Excel
-app.get('/api/analysis/export/:raceId', async (req, res) => {
-    try {
-        const { raceId } = req.params;
-
-        // 1. Get Race Info
-        const race = await prisma.race.findUnique({ where: { hkjcId: raceId } });
-        if (!race) return res.status(404).send("Race not found");
-
-        // 2. Get Scores
-        let configRecord = await prisma.scoringConfig.findFirst({
-            where: { isActive: true },
-            orderBy: { createdAt: 'desc' }
-        });
-        const config = configRecord ? (configRecord.config as any) : DEFAULT_SCORING_CONFIG;
-        const engine = new ScoringEngine(config);
-        const scores = await engine.calculateRaceScore(raceId);
-
-        // 3. Build Excel
-        const workbook = XLSX.utils.book_new();
-        
-        // Prepare Data
-        const data: any[][] = [];
-        
-        // Headers
-        const headers = ['Rank', 'Horse No', 'Horse Name', 'Total Score'];
-        if (scores.length > 0) {
-            Object.values(scores[0].breakdown).forEach((b: any) => {
-                headers.push(b.factorLabel);
-            });
-        }
-        data.push(headers);
-
-        // Rows
-        scores.forEach((s: any, index: number) => {
-            const row = [
-                index + 1,
-                s.horseNo,
-                s.horseName,
-                s.totalScore.toFixed(1)
-            ];
-            Object.values(s.breakdown).forEach((b: any) => {
-                row.push(b.weightedScore.toFixed(1));
-            });
-            data.push(row);
-        });
-
-        const sheet = XLSX.utils.aoa_to_sheet(data);
-        XLSX.utils.book_append_sheet(workbook, sheet, "Analysis");
-
-        const buffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-        const filename = `analysis-${race.date}-${race.venue}-R${race.raceNo}.xlsx`;
-        
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-        res.send(buffer);
-
-    } catch (e: any) {
-        console.error('Export error:', e);
-        res.status(500).send(e.message);
-    }
-});
-
-app.get('/analysis/race/:raceId', async (req, res) => {
-    try {
-        const { raceId } = req.params;
-
-        // Fetch Race Info for Header
-        const race = await prisma.race.findUnique({
-            where: { hkjcId: raceId }
-        });
-
-        if (!race) {
-            return res.status(404).send(`Race ${raceId} not found in DB. Please scrape first.`);
-        }
-
-        // Get Scores
-        // Reuse logic or call internal function? Calling internal is better.
-        // 1. Get Config
-        let configRecord = await prisma.scoringConfig.findFirst({
-            where: { isActive: true },
-            orderBy: { createdAt: 'desc' }
-        });
-        const config = configRecord ? (configRecord.config as any) : DEFAULT_SCORING_CONFIG;
-
-        // 2. Run Engine
-        const engine = new ScoringEngine(config);
-        const scores = await engine.calculateRaceScore(raceId);
-
-        res.render('analysis', {
-            race,
-            scores,
-            config
-        });
-
-    } catch (e: any) {
-        console.error('Analysis View Error:', e);
-        res.status(500).send(e.message);
-    }
-});
-
-app.get('/api/config/scoring', async (req, res) => {
-    try {
-        let config = await prisma.scoringConfig.findFirst({
-            where: { isActive: true },
-            orderBy: { createdAt: 'desc' }
-        });
-
-        if (!config) {
-            config = await prisma.scoringConfig.create({
-                data: {
-                    name: "Default Config",
-                    config: DEFAULT_SCORING_CONFIG as any
-                }
-            });
-        }
-        res.json(config);
-    } catch (e: any) {
-        console.error('Config fetch error:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.post('/api/config/scoring', async (req, res) => {
-    try {
-        const { config, name } = req.body;
-        if (!config) return res.status(400).json({ error: "Config body required" });
-
-        const newConfig = await prisma.scoringConfig.create({
-            data: {
-                name: name || "Updated Config",
-                config: config,
-                isActive: true
-            }
-        });
-
-        res.json(newConfig);
-    } catch (e: any) {
-        console.error('Config save error:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-app.get('/config', (req, res) => {
-    res.render('config');
 });
 
 app.get('/odds', (req, res) => {
@@ -670,45 +434,7 @@ app.post('/api/scrape/trackwork', async (req, res) => {
     }
 });
 
-// Stats Scraping Routes
-app.post('/api/scrape/stats/general', async (req, res) => {
-    try {
-        console.log('Starting General Stats Scraping...');
-        const jockeys = await scrapeJockeyRanking('Current');
-        await scrapeTrainerRanking('Current');
-        // Optionally scrape previous season too if needed
-        // await scrapeJockeyRanking('Previous');
-        // await scrapeTrainerRanking('Previous');
-        
-        res.json({ success: true, message: `Scraped stats for ${jockeys.length} jockeys and updated trainers.` });
-    } catch (e: any) {
-        console.error('General Stats Scrape Error:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
 
-app.post('/api/scrape/stats/partnership', async (req, res) => {
-    try {
-        const season = req.body.season || 'Current';
-        console.log(`Starting Partnership Stats Scraping for ${season}...`);
-        
-        // Use non-blocking in background or blocking?
-        // This is a long process. We should probably just start it and return "Started".
-        // But for simplicity in this turn, I'll await it. If it times out, client should handle.
-        // Or better, make it async fire-and-forget but log.
-        
-        // Since the user might want to know when it's done, I'll await it but with a caveat.
-        // Actually, this might take minutes.
-        // Let's await it for now as the list of jockeys isn't huge (~25 jockeys).
-        
-        await scrapePartnershipStats(season);
-        
-        res.json({ success: true, message: `Partnership stats scraping completed for ${season}` });
-    } catch (e: any) {
-        console.error('Partnership Stats Scrape Error:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
 
 app.post('/api/scrape/sectionals', async (req, res) => {
     try {
