@@ -42,9 +42,17 @@ async function ensureRace(date: string, raceNo: number, venue?: string) {
         } catch (e: any) {
             // Handle race condition where race might be created by parallel process
             if (e.code === 'P2002') {
-                 race = await prisma.race.findFirst({
-                    where: { date, raceNo }
+                // Try finding by hkjcId specifically if unique constraint failed
+                race = await prisma.race.findUnique({
+                    where: { hkjcId }
                 });
+                
+                // Fallback to date/raceNo if hkjcId lookup fails (unlikely if P2002)
+                if (!race) {
+                    race = await prisma.race.findFirst({
+                        where: { date, raceNo }
+                    });
+                }
             } else {
                 console.error(`Failed to create race ${hkjcId}:`, e.message);
             }

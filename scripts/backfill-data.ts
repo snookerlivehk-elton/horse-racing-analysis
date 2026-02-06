@@ -15,22 +15,25 @@ async function runBackfill() {
     const fixtureService = new FixtureService();
     
     // Configuration
-    // User requested 6 months for initial trial
+    // User requested 1 year for expanded data set
     const startYear = 2026;
     const startMonth = 2; // February
     
-    // Calculate cutoff date: 6 months ago from 2026-02-01 is 2025-08-01
-    const cutoffDate = new Date('2025-08-01');
+    // Calculate cutoff date: 1 year ago from 2026-02-01 is 2025-02-01
+    const cutoffDate = new Date('2025-02-01');
 
     console.log('Starting backfill process (API Only)...');
     console.log(`Range: From ${cutoffDate.toISOString().split('T')[0]} to ${startYear}-${startMonth}-01`);
 
     // We still iterate month by month, but check the date
     let iterYear = 2025;
-    let iterMonth = 8; // Start from August 2025
+    let iterMonth = 2; // Start from February 2025
 
     const targetYear = startYear;
     const targetMonth = startMonth;
+
+    let totalProcessed = 0;
+    let totalSkipped = 0;
 
     while (iterYear < targetYear || (iterYear === targetYear && iterMonth <= targetMonth)) {
         console.log(`Processing Month: ${iterYear}/${iterMonth}`);
@@ -38,14 +41,24 @@ async function runBackfill() {
         try {
             // Get fixtures with venue info
             const fixtures = await fixtureService.getRaceFixtures(iterYear, iterMonth);
-            
+            console.log(`Found ${fixtures.length} fixtures for ${iterYear}/${iterMonth}`);
+
             for (const fixture of fixtures) {
                 // fixture.date is YYYY/MM/DD
                 // Convert to YYYY-MM-DD for J18 and DB
                 const dateIso = fixture.date.replace(/\//g, '-');
+                const fixtureDate = new Date(dateIso);
                 
-                if (new Date(dateIso) < cutoffDate) continue;
-                if (new Date(dateIso) > new Date('2026-02-01')) continue;
+                if (fixtureDate < cutoffDate) {
+                    console.log(`Skipping ${dateIso} (Before cutoff)`);
+                    totalSkipped++;
+                    continue;
+                }
+                if (fixtureDate > new Date('2026-02-01')) {
+                    console.log(`Skipping ${dateIso} (After end date)`);
+                    totalSkipped++;
+                    continue;
+                }
 
                 console.log(`>>> Processing Race Day: ${dateIso} (${fixture.venue})`);
                 
@@ -59,13 +72,14 @@ async function runBackfill() {
                     await scrapeAndSaveJ18Payout(dateIso, fixture.venue);
                     
                     console.log(`Successfully processed ${dateIso}`);
+                    totalProcessed++;
                 } catch (err: any) {
                     console.error(`Failed to process ${dateIso}:`, err.message);
                 }
 
-                // Random delay between 1-3 seconds (API is likely faster/tolerant)
-                const waitTime = 1000 + Math.random() * 2000;
-                console.log(`Waiting ${Math.round(waitTime)}ms...`);
+                // Reduced delay for faster backfill
+                const waitTime = 500 + Math.random() * 500;
+                // console.log(`Waiting ${Math.round(waitTime)}ms...`);
                 await delay(waitTime);
             }
 
@@ -84,7 +98,7 @@ async function runBackfill() {
         await delay(1000);
     }
 
-    console.log('Backfill completed.');
+    console.log(`Backfill completed. Processed: ${totalProcessed}, Skipped: ${totalSkipped}`);
     await prisma.$disconnect();
 }
 
