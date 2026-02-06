@@ -707,10 +707,10 @@ app.get('/api/analysis/stats/race/:raceId', async (req, res) => {
     }
 });
 
-// J18 Analysis - Hit Rates (New Feature)
-app.get('/analysis/hit-rates', (req, res) => {
-    res.render('analysis_hit_rates');
-});
+// J18 Analysis - Hit Rates (Merged into Home Page)
+// app.get('/analysis/hit-rates', (req, res) => {
+//    res.render('analysis_hit_rates');
+// });
 
 app.get('/api/analysis/hit-rates', async (req, res) => {
     try {

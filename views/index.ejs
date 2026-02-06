@@ -1,10 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="zh-HK">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>賽馬綜合走勢分析</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>J18 命中率分析</title>
     <style>
         :root {
             --bg-dark: #1e1e1e;
@@ -14,11 +14,7 @@
             --accent-gold: #fbbf24;
             --accent-green: #10b981;
             --accent-blue: #3b82f6;
-            --accent-red: #ef4444;
             --border-color: #404040;
-            --table-header-bg: #333333;
-            --table-row-even: #252525;
-            --table-row-odd: #2a2a2a;
         }
 
         body { 
@@ -29,103 +25,210 @@
             margin: 0;
         }
         
-        h1 { color: var(--accent-gold); text-align: center; margin-bottom: 10px; text-transform: uppercase; }
-        .meta-info { text-align: center; margin-bottom: 20px; color: var(--text-muted); border-bottom: 1px solid var(--border-color); padding-bottom: 15px; }
-        
-        .nav-bar {
+        h1 { color: var(--accent-gold); text-align: center; margin-bottom: 20px; }
+
+        .control-panel {
+            background: var(--bg-panel);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 0 auto 30px;
+            max-width: 800px;
             display: flex;
+            gap: 20px;
             justify-content: center;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .nav-btn {
-            background-color: var(--accent-gold);
-            color: #000;
-            padding: 10px 20px;
-            text-decoration: none;
-            border-radius: 4px;
-            font-weight: bold;
-            transition: opacity 0.2s;
-        }
-
-        .nav-btn:hover {
-            opacity: 0.8;
-        }
-
-        .card { 
-            background: var(--bg-panel); 
-            padding: 20px; 
-            margin-bottom: 30px; 
-            border-radius: 8px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
+            align-items: center;
             border: 1px solid var(--border-color);
         }
-        .card-title { 
-            font-size: 1.2em; 
-            font-weight: bold; 
-            margin-bottom: 15px; 
-            border-bottom: 1px solid var(--border-color); 
-            padding-bottom: 10px; 
-            color: var(--accent-blue); 
+
+        input[type="date"] {
+            background: #404040;
+            border: 1px solid #555;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
         }
-        
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; text-align: center; border-bottom: 1px solid var(--border-color); }
-        th { background-color: var(--table-header-bg); font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 0.9em; }
-        tr { background-color: var(--table-row-odd); }
-        tr:nth-child(even) { background-color: var(--table-row-even); }
-        tr:hover { background-color: #383838; }
-        
-        .rate-high { color: var(--accent-green); font-weight: bold; }
-        .rate-mid { color: var(--accent-gold); }
-        .rate-low { color: var(--accent-red); }
+
+        button {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background: #2563eb; }
+
+        .stats-container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .section-title {
+            color: var(--accent-green);
+            margin-top: 30px;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 5px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: #333;
+            color: var(--accent-gold);
+            font-weight: bold;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #383838; }
+
+        .loading { text-align: center; color: var(--text-muted); padding: 20px; display: none; }
     </style>
 </head>
 <body>
 
-    <h1>🐎 賽馬數據中心</h1>
-    <div class="meta-info">
-        分析場次總數: <strong><%= racesCount %></strong> | 最後更新: <%= lastUpdated %> | 系統版本: <%= serverVersion %>
+    <h1>📊 J18 命中率分析</h1>
+
+    <div class="control-panel">
+        <div>
+            <label>開始日期: </label>
+            <input type="date" id="startDate" value="2023-09-01">
+        </div>
+        <div>
+            <label>結束日期: </label>
+            <input type="date" id="endDate" value="<%= new Date().toISOString().split('T')[0] %>">
+        </div>
+        <button onclick="fetchStats()">開始分析</button>
     </div>
 
-    <div class="nav-bar">
-        <a href="/analysis/hit-rates" class="nav-btn" style="background-color: var(--accent-blue); color: white; padding: 15px 30px; font-size: 1.2em;">📈 J18 命中率驗證 (新)</a>
+    <div id="loading" class="loading">正在分析數據，請稍候...</div>
+
+    <div id="results" class="stats-container" style="display: none;">
+        <div class="section-title">總結 (共 <span id="totalRaces">0</span> 場賽事)</div>
+
+        <!-- Pundit Stats -->
+        <div class="section-title">👤 名家推介 (J18 Likes)</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>項目</th>
+                    <th>頭兩位中冠軍 (Win)</th>
+                    <th>頭三位中連贏 (Q)</th>
+                    <th>頭四位中三重彩 (T)</th>
+                    <th>頭六位中四重彩 (F4)</th>
+                </tr>
+            </thead>
+            <tbody id="punditTable">
+                <!-- JS will populate -->
+            </tbody>
+        </table>
+
+        <!-- Trend Stats -->
+        <div class="section-title">📈 綜合走勢 (J18 Trend) - T30至T0</div>
+        <table>
+            <thead>
+                <tr>
+                    <th>時間點 (T-Min)</th>
+                    <th>頭兩位中冠軍 (Win)</th>
+                    <th>頭三位中連贏 (Q)</th>
+                    <th>頭四位中三重彩 (T)</th>
+                    <th>頭六位中四重彩 (F4)</th>
+                    <th>樣本數</th>
+                </tr>
+            </thead>
+            <tbody id="trendTable">
+                <!-- JS will populate -->
+            </tbody>
+        </table>
     </div>
 
-    <!-- New Race Overview Section -->
-    <div class="card">
-        <div class="card-title">📅 賽事總覽</div>
-        <% if (Object.keys(groupedRaces).length > 0) { %>
-            <% Object.keys(groupedRaces).forEach(date => { %>
-                <div style="margin-bottom: 20px;">
-                    <h3 style="color: var(--accent-gold); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">
-                        <%= date %> (<%= groupedRaces[date][0].venue %>)
-                    </h3>
-                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
-                        <% groupedRaces[date].forEach(race => { %>
-                            <div style="display: inline-block; text-align: center; margin-right: 5px;">
-                                <a href="/scrape-data?date=<%= race.date.replace(/-/g, '/') %>" 
-                                   style="display: block; padding: 10px 15px; background: var(--bg-dark); border: 1px solid var(--border-color); color: var(--text-main); text-decoration: none; border-radius: 4px; min-width: 60px;">
-                                    第 <%= race.raceNo %> 場
-                                    <div style="font-size: 0.8em; color: var(--text-muted); margin-top: 3px;">
-                                        <%= race.distance %>M
-                                    </div>
-                                </a>
-                                <a href="/analysis/j18/<%= race.id %>"
-                                   style="display: block; margin-top: 5px; padding: 3px; background-color: var(--accent-blue); color: white; text-decoration: none; border-radius: 3px; font-size: 0.8em;">
-                                   📈 J18 分析
-                                </a>
-                            </div>
-                        <% }); %>
-                    </div>
-                </div>
-            <% }); %>
-        <% } else { %>
-            <div style="text-align: center; color: var(--text-muted); padding: 20px;">
-                暫無賽事資料。請先執行爬蟲或等待數據更新。
-            </div>
-        <% } %>
-    </div>
+    <script>
+        async function fetchStats() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            try {
+                const response = await fetch(`/api/analysis/hit-rates?startDate=${startDate}&endDate=${endDate}`);
+                const data = await response.json();
+                
+                renderStats(data);
+            } catch (error) {
+                alert('獲取數據失敗: ' + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('results').style.display = 'block';
+            }
+        }
+
+        function formatPct(hits, total) {
+            if (total === 0) return '-';
+            const pct = (hits / total * 100).toFixed(1);
+            return `${pct}% (${hits}/${total})`;
+        }
+
+        function renderStats(data) {
+            document.getElementById('totalRaces').innerText = data.totalRaces;
+
+            // Render Pundit Stats
+            const p = data.punditStats;
+            const pRow = `
+                <tr>
+                    <td>整體表現</td>
+                    <td>${formatPct(p.winHit, p.count)}</td>
+                    <td>${formatPct(p.qHit, p.count)}</td>
+                    <td>${formatPct(p.tHit, p.count)}</td>
+                    <td>${formatPct(p.f4Hit, p.count)}</td>
+                </tr>
+            `;
+            document.getElementById('punditTable').innerHTML = pRow;
+
+            // Render Trend Stats
+            const t = data.trendStats;
+            // Sort keys descending (30, 25, 20...)
+            const keys = Object.keys(t).sort((a, b) => parseInt(b) - parseInt(a));
+            
+            let tHtml = '';
+            keys.forEach(k => {
+                const item = t[k];
+                tHtml += `
+                    <tr>
+                        <td>T-${k}</td>
+                        <td>${formatPct(item.winHit, item.count)}</td>
+                        <td>${formatPct(item.qHit, item.count)}</td>
+                        <td>${formatPct(item.tHit, item.count)}</td>
+                        <td>${formatPct(item.f4Hit, item.count)}</td>
+                        <td>${item.count}</td>
+                    </tr>
+                `;
+            });
+            
+            if (keys.length === 0) {
+                tHtml = '<tr><td colspan="6">沒有走勢數據</td></tr>';
+            }
+            
+            document.getElementById('trendTable').innerHTML = tHtml;
+        }
+
+        // Auto-fetch on load if desired, or let user click
+        // fetchStats();
+    </script>
 </body>
 </html>
