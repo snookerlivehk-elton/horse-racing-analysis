@@ -237,12 +237,22 @@ export class AnalysisService {
             totalRaces: 0,
             punditStats: { 
                 winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0,
-                winYield: 0, qYield: 0, tYield: 0, f4Yield: 0
+                winRevenue: 0, qRevenue: 0, tRevenue: 0, f4Revenue: 0,
+                winCost: 0, qCost: 0, tCost: 0, f4Cost: 0
             },
             trendStats: {} as Record<string, { 
                 winHit: number, qHit: number, tHit: number, f4Hit: number, count: number,
-                winYield: number, qYield: number, tYield: number, f4Yield: number
+                winRevenue: number, qRevenue: number, tRevenue: number, f4Revenue: number,
+                winCost: number, qCost: number, tCost: number, f4Cost: number
             }>
+        };
+
+        // Standard Betting Assumptions (Cost per Race)
+        const COSTS = {
+            WIN: 20,    // Top 2 ($10/bet * 2)
+            Q: 30,      // Top 3 Box ($10/bet * 3)
+            T: 240,     // Top 4 Box ($10/bet * 24)
+            F4: 3600    // Top 6 Box ($10/bet * 360)
         };
 
         for (const race of races) {
@@ -337,10 +347,17 @@ export class AnalysisService {
                 if (picks && picks.length > 0) {
                     const res = checkHits(picks);
                     stats.punditStats.count++;
-                    if (res.winHit) { stats.punditStats.winHit++; stats.punditStats.winYield += winDiv; }
-                    if (res.qHit) { stats.punditStats.qHit++; stats.punditStats.qYield += qDiv; }
-                    if (res.tHit) { stats.punditStats.tHit++; stats.punditStats.tYield += tDiv; }
-                    if (res.f4Hit) { stats.punditStats.f4Hit++; stats.punditStats.f4Yield += f4Div; }
+                    
+                    // Add Costs
+                    stats.punditStats.winCost += COSTS.WIN;
+                    stats.punditStats.qCost += COSTS.Q;
+                    stats.punditStats.tCost += COSTS.T;
+                    stats.punditStats.f4Cost += COSTS.F4;
+
+                    if (res.winHit) { stats.punditStats.winHit++; stats.punditStats.winRevenue += winDiv; }
+                    if (res.qHit) { stats.punditStats.qHit++; stats.punditStats.qRevenue += qDiv; }
+                    if (res.tHit) { stats.punditStats.tHit++; stats.punditStats.tRevenue += tDiv; }
+                    if (res.f4Hit) { stats.punditStats.f4Hit++; stats.punditStats.f4Revenue += f4Div; }
                 }
             }
 
@@ -353,16 +370,24 @@ export class AnalysisService {
                         if (!stats.trendStats[timeKey]) {
                             stats.trendStats[timeKey] = { 
                                 winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0,
-                                winYield: 0, qYield: 0, tYield: 0, f4Yield: 0
+                                winRevenue: 0, qRevenue: 0, tRevenue: 0, f4Revenue: 0,
+                                winCost: 0, qCost: 0, tCost: 0, f4Cost: 0
                             };
                         }
                         
                         const res = checkHits(picks);
                         stats.trendStats[timeKey].count++;
-                        if (res.winHit) { stats.trendStats[timeKey].winHit++; stats.trendStats[timeKey].winYield += winDiv; }
-                        if (res.qHit) { stats.trendStats[timeKey].qHit++; stats.trendStats[timeKey].qYield += qDiv; }
-                        if (res.tHit) { stats.trendStats[timeKey].tHit++; stats.trendStats[timeKey].tYield += tDiv; }
-                        if (res.f4Hit) { stats.trendStats[timeKey].f4Hit++; stats.trendStats[timeKey].f4Yield += f4Div; }
+                        
+                        // Add Costs
+                        stats.trendStats[timeKey].winCost += COSTS.WIN;
+                        stats.trendStats[timeKey].qCost += COSTS.Q;
+                        stats.trendStats[timeKey].tCost += COSTS.T;
+                        stats.trendStats[timeKey].f4Cost += COSTS.F4;
+
+                        if (res.winHit) { stats.trendStats[timeKey].winHit++; stats.trendStats[timeKey].winRevenue += winDiv; }
+                        if (res.qHit) { stats.trendStats[timeKey].qHit++; stats.trendStats[timeKey].qRevenue += qDiv; }
+                        if (res.tHit) { stats.trendStats[timeKey].tHit++; stats.trendStats[timeKey].tRevenue += tDiv; }
+                        if (res.f4Hit) { stats.trendStats[timeKey].f4Hit++; stats.trendStats[timeKey].f4Revenue += f4Div; }
                     }
                 });
             }

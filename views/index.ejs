@@ -119,6 +119,17 @@
     <div id="loading" class="loading">正在分析數據，請稍候...</div>
 
     <div id="results" class="stats-container" style="display: none;">
+        <!-- Legend for Betting Strategy -->
+        <div style="background: #2d2d2d; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #444; font-size: 0.9em; color: #ccc;">
+            <strong style="color: #fbbf24;">💡 模擬投注策略 (Standard Assumptions):</strong>
+            <ul style="margin: 5px 0 0 20px; padding: 0;">
+                <li><strong>Win (獨贏):</strong> 買推薦頭 2 匹 (2 注) = 成本 $20</li>
+                <li><strong>Q (連贏):</strong> 買推薦頭 3 匹互串 (3 注) = 成本 $30</li>
+                <li><strong>T (三重彩):</strong> 買推薦頭 4 匹互串 (24 注) = 成本 $240</li>
+                <li><strong>F4 (四重彩):</strong> 買推薦頭 6 匹互串 (360 注) = 成本 $3600</li>
+            </ul>
+        </div>
+
         <div class="section-title">
             分析結果: <span id="periodLabel"></span> 
             (共 <span id="totalRaces">0</span> 場賽事)
@@ -202,14 +213,24 @@
             }
         }
 
-        function formatPct(hits, total, yieldVal) {
+        function formatPct(hits, total, revenue, cost) {
             if (total === 0) return '-';
+            
             const pct = (hits / total * 100).toFixed(1);
-            const yieldStr = yieldVal ? `$${yieldVal.toLocaleString()}` : '$0';
+            const net = revenue - cost;
+            const roi = cost > 0 ? (net / cost * 100).toFixed(1) : '0.0';
+            
+            // Color logic for Net Profit
+            const netColor = net >= 0 ? '#10b981' : '#ef4444'; // Green if profit, Red if loss
+            const netStr = net >= 0 ? `+$${net.toLocaleString()}` : `-$${Math.abs(net).toLocaleString()}`;
+            
             return `
                 <div style="font-size: 1.1em; font-weight: bold;">${pct}%</div>
-                <div style="font-size: 0.9em; color: #aaa;">(${hits}/${total})</div>
-                <div style="color: #fbbf24; margin-top: 4px;">${yieldStr}</div>
+                <div style="font-size: 0.8em; color: #aaa;">(${hits}/${total})</div>
+                <div style="margin-top: 6px; font-size: 0.9em;">
+                    <span style="color: ${netColor}; font-weight: bold;">${netStr}</span>
+                </div>
+                <div style="font-size: 0.8em; color: #888;">ROI: ${roi}%</div>
             `;
         }
 
@@ -221,10 +242,10 @@
             const pRow = `
                 <tr>
                     <td>整體表現</td>
-                    <td>${formatPct(p.winHit, p.count, p.winYield)}</td>
-                    <td>${formatPct(p.qHit, p.count, p.qYield)}</td>
-                    <td>${formatPct(p.tHit, p.count, p.tYield)}</td>
-                    <td>${formatPct(p.f4Hit, p.count, p.f4Yield)}</td>
+                    <td>${formatPct(p.winHit, p.count, p.winRevenue, p.winCost)}</td>
+                    <td>${formatPct(p.qHit, p.count, p.qRevenue, p.qCost)}</td>
+                    <td>${formatPct(p.tHit, p.count, p.tRevenue, p.tCost)}</td>
+                    <td>${formatPct(p.f4Hit, p.count, p.f4Revenue, p.f4Cost)}</td>
                 </tr>
             `;
             document.getElementById('punditTable').innerHTML = pRow;
@@ -240,10 +261,10 @@
                 const row = `
                     <tr>
                         <td>T-${key}</td>
-                        <td>${formatPct(t.winHit, t.count, t.winYield)}</td>
-                        <td>${formatPct(t.qHit, t.count, t.qYield)}</td>
-                        <td>${formatPct(t.tHit, t.count, t.tYield)}</td>
-                        <td>${formatPct(t.f4Hit, t.count, t.f4Yield)}</td>
+                        <td>${formatPct(t.winHit, t.count, t.winRevenue, t.winCost)}</td>
+                        <td>${formatPct(t.qHit, t.count, t.qRevenue, t.qCost)}</td>
+                        <td>${formatPct(t.tHit, t.count, t.tRevenue, t.tCost)}</td>
+                        <td>${formatPct(t.f4Hit, t.count, t.f4Revenue, t.f4Cost)}</td>
                         <td>${t.count}</td>
                     </tr>
                 `;
