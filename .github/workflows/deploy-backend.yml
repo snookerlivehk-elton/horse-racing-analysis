@@ -16,6 +16,6 @@ jobs:
         uses: railwayapp/cli-action@v1
         with:
           railway_token: ${{ secrets.RAILWAY_TOKEN }}
-          args: "up"
+          args: "up --service b433acab-d022-443f-a755-5ff0c2cb41c0"
         env:
           RAILWAY_PROJECT_ID: a5b6937a-508e-4e66-b83a-16ae022349ab
