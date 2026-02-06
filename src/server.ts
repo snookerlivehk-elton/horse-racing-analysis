@@ -2,14 +2,16 @@ import 'dotenv/config';
 import express from 'express';
 import * as path from 'path';
 import * as XLSX from 'xlsx';
+import prisma from './lib/prisma';
+import { processMissingSectionals } from './services/sectionalScraper';
 import { scrapeTodayRacecard, ScrapeResult, HKJC_HEADERS, RaceHorseInfo, scrapeHorseProfile, HorsePerformanceRow, HorseProfileExtended, HorsePerformanceRecord } from './hkjcScraper';
 import { saveScrapeResultToDb, updateHorseProfileInDb, getHorseProfileFromDb } from './services/dbService';
 import { fetchOdds, saveOddsHistory } from './services/oddsService';
 import { startScheduler } from './services/schedulerService';
 import { updateAllHorseProfiles } from './services/profileService';
 import { scrapeRaceTrackwork } from './services/trackworkScraper';
-import { processMissingSectionals } from './services/sectionalScraper';
-import prisma from './lib/prisma';
+import { scrapeAndSaveJ18Trend, scrapeAndSaveJ18Like, scrapeAndSaveJ18Payout } from './services/j18Service';
+import { calculateOddsDrops } from './services/statsService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,7 +32,7 @@ app.use((req, res, next) => {
 
 // Start Scheduler
 startScheduler();
-const VERSION = "1.6.5"; // Bump version to force update & confirm deployment
+const VERSION = "1.6.6"; // Bump version to force update & confirm deployment
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
@@ -438,13 +440,63 @@ app.post('/api/scrape/trackwork', async (req, res) => {
 
 app.post('/api/scrape/sectionals', async (req, res) => {
     try {
-        console.log('Triggering Missing Sectionals Processing...');
-        // Run in background to avoid timeout
-        processMissingSectionals().catch(err => console.error('Background Sectional Scrape Error:', err));
+        console.log('Processing missing sectionals...');
+        // This runs in background as it can take time
+        // We don't await the full process if we want to return quickly, 
+        // but for now let's await to see output in logs or use fire-and-forget
+        processMissingSectionals().then(() => console.log('Sectional processing finished')).catch(err => console.error(err));
         
-        res.json({ success: true, message: "Sectional scraping started in background. Check server logs for progress." });
+        res.json({ success: true, message: 'Sectional scraping started in background' });
     } catch (e: any) {
-        console.error('Sectional Scrape Trigger Error:', e);
+        console.error('Sectional Scrape Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+// J18 Scraping Endpoints
+app.post('/api/scrape/j18/trend', async (req, res) => {
+    try {
+        const date = req.body.date; // YYYY-MM-DD
+        if (!date) return res.status(400).json({ error: 'Date is required' });
+        await scrapeAndSaveJ18Trend(date);
+        res.json({ success: true, message: `J18 Trend scraped for ${date}` });
+    } catch (e: any) {
+        console.error('J18 Trend Scrape Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/scrape/j18/like', async (req, res) => {
+    try {
+        const date = req.body.date;
+        if (!date) return res.status(400).json({ error: 'Date is required' });
+        await scrapeAndSaveJ18Like(date);
+        res.json({ success: true, message: `J18 Like scraped for ${date}` });
+    } catch (e: any) {
+        console.error('J18 Like Scrape Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.post('/api/scrape/j18/payout', async (req, res) => {
+    try {
+        const date = req.body.date;
+        if (!date) return res.status(400).json({ error: 'Date is required' });
+        await scrapeAndSaveJ18Payout(date);
+        res.json({ success: true, message: `J18 Payout scraped for ${date}` });
+    } catch (e: any) {
+        console.error('J18 Payout Scrape Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/stats/odds-drop/:raceId', async (req, res) => {
+    try {
+        const raceId = req.params.raceId;
+        const drops = await calculateOddsDrops(raceId);
+        res.json(drops);
+    } catch (e: any) {
+        console.error('Odds Drop Calc Error:', e);
         res.status(500).json({ error: e.message });
     }
 });

@@ -25,6 +25,9 @@ model Race {
   // Relations
   oddsHistory OddsHistory[]
   results     RaceResult[]
+  j18Trends   J18Trend[]
+  j18Likes    J18Like[]
+  j18Payouts  J18Payout[]
   
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -98,6 +101,43 @@ model Horse {
   performances RacePerformance[]
   trackworks   Trackwork[]
   barrierTrials BarrierTrial[]
+}
+
+// J18 Data Models
+
+model J18Trend {
+  id        String   @id @default(uuid())
+  raceId    String
+  race      Race     @relation(fields: [raceId], references: [id])
+  // Stores the ranking trend for each time point
+  // Data structure: { "30": ["3","4"...], "15": [...] }
+  trends    Json     
+  updatedAt DateTime @updatedAt
+
+  @@unique([raceId])
+}
+
+model J18Like {
+  id        String   @id @default(uuid())
+  raceId    String
+  race      Race     @relation(fields: [raceId], references: [id])
+  // Stores the recommendations list
+  // Data structure: [3, 1, 4, 13, ...]
+  recommendations Json 
+  updatedAt DateTime @updatedAt
+  
+  @@unique([raceId])
+}
+
+model J18Payout {
+  id        String   @id @default(uuid())
+  raceId    String
+  race      Race     @relation(fields: [raceId], references: [id])
+  // Stores the parsed payout information
+  payouts   Json    
+  updatedAt DateTime @updatedAt
+  
+  @@unique([raceId])
 }
 
 // 馬匹過往出賽紀錄 (Historical Performance)

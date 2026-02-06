@@ -802,19 +802,8 @@ export async function scrapeTodayRacecard(date?: string): Promise<ScrapeResult> 
                     }
                 }
 
-                // Calculate stats from records directly
-                // Bypass HKJC stats table scraping which is unreliable
-                const stats = calculateDetailedStats(horse.performance.rows, {
-                    seasonStart,
-                    seasonEnd,
-                    class: race.class || '',
-                    distance: race.distance || '',
-                    venue: race.venue || '',
-                    location: race.location || '',
-                    jockey: horse.jockey
-                });
-                
-                horse.stats = stats;
+                // Stats calculation removed
+                // horse.stats = ...;
             });
 
         } catch (e) {

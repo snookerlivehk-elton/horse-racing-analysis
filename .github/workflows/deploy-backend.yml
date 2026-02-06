@@ -1,0 +1,21 @@
+name: Deploy Backend to Railway
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Deploy
+        uses: railwayapp/cli-action@v1
+        with:
+          railway_token: ${{ secrets.RAILWAY_TOKEN }}
+          args: "up"
+        env:
+          RAILWAY_PROJECT_ID: a5b6937a-508e-4e66-b83a-16ae022349ab
