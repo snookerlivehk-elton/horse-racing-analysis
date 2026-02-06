@@ -106,20 +106,23 @@
 
     <div class="control-panel">
         <div>
-            <label>開始日期: </label>
-            <input type="date" id="startDate" value="2023-09-01">
+            <label>開始日期 (Base Date): </label>
+            <input type="date" id="startDate" value="2025-02-01">
         </div>
-        <div>
-            <label>結束日期: </label>
-            <input type="date" id="endDate" value="<%= new Date().toISOString().split('T')[0] %>">
+        <div style="display: flex; gap: 10px;">
+            <button onclick="fetchStats('1w')">1 星期</button>
+            <button onclick="fetchStats('1m')">1 個月</button>
+            <button onclick="fetchStats('3m')">3 個月</button>
         </div>
-        <button onclick="fetchStats()">開始分析</button>
     </div>
 
     <div id="loading" class="loading">正在分析數據，請稍候...</div>
 
     <div id="results" class="stats-container" style="display: none;">
-        <div class="section-title">總結 (共 <span id="totalRaces">0</span> 場賽事)</div>
+        <div class="section-title">
+            分析結果: <span id="periodLabel"></span> 
+            (共 <span id="totalRaces">0</span> 場賽事)
+        </div>
 
         <!-- Pundit Stats -->
         <div class="section-title">👤 名家推介 (J18 Likes)</div>
@@ -158,15 +161,36 @@
     </div>
 
     <script>
-        async function fetchStats() {
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
+        async function fetchStats(period) {
+            const startDateStr = document.getElementById('startDate').value;
+            if (!startDateStr) {
+                alert('請選擇開始日期');
+                return;
+            }
+
+            const startDate = new Date(startDateStr);
+            let endDate = new Date(startDateStr);
+            let label = '';
+
+            if (period === '1w') {
+                endDate.setDate(startDate.getDate() + 7);
+                label = `${startDateStr} 至 ${endDate.toISOString().split('T')[0]} (1 星期)`;
+            } else if (period === '1m') {
+                endDate.setMonth(startDate.getMonth() + 1);
+                label = `${startDateStr} 至 ${endDate.toISOString().split('T')[0]} (1 個月)`;
+            } else if (period === '3m') {
+                endDate.setMonth(startDate.getMonth() + 3);
+                label = `${startDateStr} 至 ${endDate.toISOString().split('T')[0]} (3 個月)`;
+            }
+
+            const endDateStr = endDate.toISOString().split('T')[0];
             
             document.getElementById('loading').style.display = 'block';
             document.getElementById('results').style.display = 'none';
+            document.getElementById('periodLabel').innerText = label;
 
             try {
-                const response = await fetch(`/api/analysis/hit-rates?startDate=${startDate}&endDate=${endDate}`);
+                const response = await fetch(`/api/analysis/hit-rates?startDate=${startDateStr}&endDate=${endDateStr}`);
                 const data = await response.json();
                 
                 renderStats(data);
@@ -178,10 +202,15 @@
             }
         }
 
-        function formatPct(hits, total) {
+        function formatPct(hits, total, yieldVal) {
             if (total === 0) return '-';
             const pct = (hits / total * 100).toFixed(1);
-            return `${pct}% (${hits}/${total})`;
+            const yieldStr = yieldVal ? `$${yieldVal.toLocaleString()}` : '$0';
+            return `
+                <div style="font-size: 1.1em; font-weight: bold;">${pct}%</div>
+                <div style="font-size: 0.9em; color: #aaa;">(${hits}/${total})</div>
+                <div style="color: #fbbf24; margin-top: 4px;">${yieldStr}</div>
+            `;
         }
 
         function renderStats(data) {
@@ -192,43 +221,35 @@
             const pRow = `
                 <tr>
                     <td>整體表現</td>
-                    <td>${formatPct(p.winHit, p.count)}</td>
-                    <td>${formatPct(p.qHit, p.count)}</td>
-                    <td>${formatPct(p.tHit, p.count)}</td>
-                    <td>${formatPct(p.f4Hit, p.count)}</td>
+                    <td>${formatPct(p.winHit, p.count, p.winYield)}</td>
+                    <td>${formatPct(p.qHit, p.count, p.qYield)}</td>
+                    <td>${formatPct(p.tHit, p.count, p.tYield)}</td>
+                    <td>${formatPct(p.f4Hit, p.count, p.f4Yield)}</td>
                 </tr>
             `;
             document.getElementById('punditTable').innerHTML = pRow;
 
             // Render Trend Stats
-            const t = data.trendStats;
-            // Sort keys descending (30, 25, 20...)
-            const keys = Object.keys(t).sort((a, b) => parseInt(b) - parseInt(a));
+            const trendTable = document.getElementById('trendTable');
+            trendTable.innerHTML = '';
             
-            let tHtml = '';
-            keys.forEach(k => {
-                const item = t[k];
-                tHtml += `
+            const timeKeys = Object.keys(data.trendStats).sort((a, b) => Number(b) - Number(a)); // T30 -> T0
+            
+            timeKeys.forEach(key => {
+                const t = data.trendStats[key];
+                const row = `
                     <tr>
-                        <td>T-${k}</td>
-                        <td>${formatPct(item.winHit, item.count)}</td>
-                        <td>${formatPct(item.qHit, item.count)}</td>
-                        <td>${formatPct(item.tHit, item.count)}</td>
-                        <td>${formatPct(item.f4Hit, item.count)}</td>
-                        <td>${item.count}</td>
+                        <td>T-${key}</td>
+                        <td>${formatPct(t.winHit, t.count, t.winYield)}</td>
+                        <td>${formatPct(t.qHit, t.count, t.qYield)}</td>
+                        <td>${formatPct(t.tHit, t.count, t.tYield)}</td>
+                        <td>${formatPct(t.f4Hit, t.count, t.f4Yield)}</td>
+                        <td>${t.count}</td>
                     </tr>
                 `;
+                trendTable.innerHTML += row;
             });
-            
-            if (keys.length === 0) {
-                tHtml = '<tr><td colspan="6">沒有走勢數據</td></tr>';
-            }
-            
-            document.getElementById('trendTable').innerHTML = tHtml;
         }
-
-        // Auto-fetch on load if desired, or let user click
-        // fetchStats();
     </script>
 </body>
 </html>

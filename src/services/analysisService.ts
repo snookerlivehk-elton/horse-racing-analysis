@@ -235,8 +235,14 @@ export class AnalysisService {
 
         const stats = {
             totalRaces: 0,
-            punditStats: { winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0 },
-            trendStats: {} as Record<string, { winHit: number, qHit: number, tHit: number, f4Hit: number, count: number }>
+            punditStats: { 
+                winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0,
+                winYield: 0, qYield: 0, tYield: 0, f4Yield: 0
+            },
+            trendStats: {} as Record<string, { 
+                winHit: number, qHit: number, tHit: number, f4Hit: number, count: number,
+                winYield: number, qYield: number, tYield: number, f4Yield: number
+            }>
         };
 
         for (const race of races) {
@@ -246,6 +252,23 @@ export class AnalysisService {
             const { winner, placings } = this.parseResults(payouts); // placings contains 2nd, 3rd, 4th...
             
             if (!winner) continue;
+
+            // Helper to get dividend
+            const getDividend = (name: string) => {
+                const pool = payouts.find(p => p.name.includes(name));
+                if (pool && pool.list.length > 0) {
+                     const val = pool.list[0].paicai;
+                     if (typeof val === 'string' && val !== '未能勝出') {
+                         return parseFloat(val.replace(/,/g, ''));
+                     }
+                }
+                return 0;
+            };
+
+            const winDiv = getDividend('獨贏');
+            const qDiv = getDividend('連贏');
+            const tDiv = getDividend('三重彩');
+            const f4Div = getDividend('四重彩');
 
             // Re-parsing to get top 4 ranks
             const top4: number[] = [winner];
@@ -314,10 +337,10 @@ export class AnalysisService {
                 if (picks && picks.length > 0) {
                     const res = checkHits(picks);
                     stats.punditStats.count++;
-                    if (res.winHit) stats.punditStats.winHit++;
-                    if (res.qHit) stats.punditStats.qHit++;
-                    if (res.tHit) stats.punditStats.tHit++;
-                    if (res.f4Hit) stats.punditStats.f4Hit++;
+                    if (res.winHit) { stats.punditStats.winHit++; stats.punditStats.winYield += winDiv; }
+                    if (res.qHit) { stats.punditStats.qHit++; stats.punditStats.qYield += qDiv; }
+                    if (res.tHit) { stats.punditStats.tHit++; stats.punditStats.tYield += tDiv; }
+                    if (res.f4Hit) { stats.punditStats.f4Hit++; stats.punditStats.f4Yield += f4Div; }
                 }
             }
 
@@ -328,15 +351,18 @@ export class AnalysisService {
                     const picks = trendsData[timeKey].map(Number);
                     if (picks.length > 0) {
                         if (!stats.trendStats[timeKey]) {
-                            stats.trendStats[timeKey] = { winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0 };
+                            stats.trendStats[timeKey] = { 
+                                winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0,
+                                winYield: 0, qYield: 0, tYield: 0, f4Yield: 0
+                            };
                         }
                         
                         const res = checkHits(picks);
                         stats.trendStats[timeKey].count++;
-                        if (res.winHit) stats.trendStats[timeKey].winHit++;
-                        if (res.qHit) stats.trendStats[timeKey].qHit++;
-                        if (res.tHit) stats.trendStats[timeKey].tHit++;
-                        if (res.f4Hit) stats.trendStats[timeKey].f4Hit++;
+                        if (res.winHit) { stats.trendStats[timeKey].winHit++; stats.trendStats[timeKey].winYield += winDiv; }
+                        if (res.qHit) { stats.trendStats[timeKey].qHit++; stats.trendStats[timeKey].qYield += qDiv; }
+                        if (res.tHit) { stats.trendStats[timeKey].tHit++; stats.trendStats[timeKey].tYield += tDiv; }
+                        if (res.f4Hit) { stats.trendStats[timeKey].f4Hit++; stats.trendStats[timeKey].f4Yield += f4Div; }
                     }
                 });
             }
