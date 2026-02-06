@@ -1,134 +1,123 @@
 
-import * as cheerio from 'cheerio';
-// import fetch from 'node-fetch'; // Native fetch in Node 18+
-import { fetchOddsForAllRaces } from './oddsService';
-import { scrapeTodayRacecard } from '../hkjcScraper';
-import { updateAllHorseProfiles } from './profileService';
+import cron from 'node-cron';
+import { FixtureService, RaceFixture } from './fixtureService';
+// import { scrapeTodayRacecard } from '../hkjcScraper'; // Removed: Pure J18 API approach
+// import { saveScrapeResultToDb } from './dbService';   // Removed: Pure J18 API approach
+// import { fetchOddsForAllRaces } from './oddsService'; // Removed: Pure J18 API approach
+import { scrapeAndSaveJ18Like, scrapeAndSaveJ18Trend, scrapeAndSaveJ18Payout } from './j18Service';
+import { processMissingSectionals } from './sectionalScraper';
 
-interface RaceFixture {
-    date: string; // YYYY-MM-DD
-    venue: string; // ST or HV
-}
+const fixtureService = new FixtureService();
 
-let cachedFixtures: RaceFixture[] = [];
-let lastFixtureUpdate = 0;
-let lastProfileUpdateDate = '';
+// Cache fixtures to avoid spamming HKJC
+let fixtureCache: { monthKey: string, fixtures: RaceFixture[] } | null = null;
 
-const FIXTURE_URL = 'https://racing.hkjc.com/zh-hk/local/information/fixture';
-
-async function updateFixtures() {
-    console.log('Updating race fixtures...');
-    try {
-        const response = await fetch(FIXTURE_URL);
-        const html = await response.text();
-        const $ = cheerio.load(html);
-        
-        const fixtures: RaceFixture[] = [];
-        const currentYear = new Date().getFullYear();
-        
-        // The fixture table is usually the first one with class 'table_bd' or just the first table in content
-        // Based on analysis, it's likely the first table
-        $('table').first().find('tr').each((i, row) => {
-            if (i === 0) return; // Skip header
-            
-            const cells = $(row).find('td');
-            if (cells.length < 3) return;
-            
-            const dateStr = $(cells[0]).text().trim(); // e.g. "01/02"
-            const venueStr = $(cells[2]).text().trim(); // e.g. "沙田"
-            
-            if (!dateStr || !venueStr) return;
-            
-            // Parse Date
-            const [day, month] = dateStr.split('/').map(Number);
-            if (!day || !month) return;
-            
-            // Handle year rollover (e.g. scraping in Dec for Jan race)
-            // Or scraping in Jan for Dec race (unlikely for future list)
-            // Simple logic: If month < currentMonth - 2, assume next year? 
-            // Better: Fixture page usually lists current season. 
-            // If scraped month is less than current month, it might be next year (if currently Dec).
-            // But since we are looking for *future* races, if month < nowMonth, it's next year.
-            
-            let year = currentYear;
-            const now = new Date();
-            if (month < now.getMonth() + 1 && now.getMonth() > 9) {
-                year = currentYear + 1;
-            }
-            
-            // Format YYYY-MM-DD
-            const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-            
-            // Map Venue
-            let venue = 'ST';
-            if (venueStr.includes('跑馬地')) venue = 'HV';
-            else if (venueStr.includes('沙田')) venue = 'ST';
-            
-            fixtures.push({ date: formattedDate, venue });
-        });
-        
-        console.log(`Found ${fixtures.length} fixtures.`);
-        cachedFixtures = fixtures;
-        lastFixtureUpdate = Date.now();
-        
-    } catch (error) {
-        console.error('Failed to update fixtures:', error);
+async function getCachedFixtures(year: number, month: number): Promise<RaceFixture[]> {
+    const key = `${year}-${month}`;
+    if (!fixtureCache || fixtureCache.monthKey !== key) {
+        const fixtures = await fixtureService.getRaceFixtures(year, month);
+        fixtureCache = { monthKey: key, fixtures };
     }
+    return fixtureCache.fixtures;
 }
 
 export function startScheduler() {
-    console.log('Starting Scheduler Service...');
-    
-    // Initial update
-    updateFixtures();
-    
-    // Update fixtures every 6 hours
-    setInterval(updateFixtures, 6 * 60 * 60 * 1000);
-    
-    // Check for race day every 5 minutes
-    setInterval(async () => {
-        const today = new Date().toISOString().split('T')[0];
-        
-        // Find if today is a race day
-        const raceDay = cachedFixtures.find(f => f.date === today);
-        
-        if (raceDay) {
-            console.log(`Today (${today}) is a race day at ${raceDay.venue}!`);
-            
-            // 1. Fetch Odds
-            try {
-                console.log('Fetching odds...');
-                await fetchOddsForAllRaces(today, raceDay.venue);
-            } catch (e) {
-                console.error('Error in scheduled odds fetch:', e);
-            }
+    console.log('Starting Scheduler Service (Node-Cron)...');
+    console.log('Mode: Manual/Backfill Only (Automatic Sync Disabled)');
 
-            // 2. Update Horse Profiles (Once per day)
-            if (lastProfileUpdateDate !== today) {
-                console.log(`First run of the day (${today}). Updating horse profiles...`);
-                try {
-                    // Fetch racecard to get horses
-                    const result = await scrapeTodayRacecard(today);
-                    if (result && result.races) {
-                        const allHorses = result.races.flatMap(r => r.horses);
-                        // Run in background (don't await strictly if we want to return from this loop, 
-                        // but since it's an interval, awaiting is fine)
-                        updateAllHorseProfiles(allHorses).then(() => {
-                            console.log('Daily profile update finished.');
-                        }).catch(e => {
-                            console.error('Daily profile update failed:', e);
-                        });
-                        
-                        lastProfileUpdateDate = today;
-                    }
-                } catch (e) {
-                    console.error('Error fetching racecard for profile update:', e);
-                }
-            }
-        } else {
-            // Optional: Log heartbeat
-            // console.log(`Today (${today}) is not a race day.`);
-        }
+    // Automatic scheduling disabled per user request
+    /*
+    // 1. Daily Race Check at 08:00 AM (HKT)
+    cron.schedule('0 8 * * *', async () => {
+        console.log('[Scheduler] Running Daily Race Check...');
+        await checkAndFetchJ18();
+    }, {
+        timezone: "Asia/Hong_Kong"
+    });
+
+    // 2. Race Day Odds/Trend Update (Every 15 mins from 10:00 to 23:00 HKT)
+    cron.schedule('*\/15 10-23 * * *', async () => {
+         const fixture = await getTodayFixture();
+         if (fixture) {
+             console.log(`[Scheduler] It is race day (${fixture.date} @ ${fixture.venue}). Fetching J18 Data...`);
+             try {
+                 // Fetch latest trends and payouts from J18 API
+                 // These functions will auto-create races if they don't exist
+                 const dateIso = fixture.date.replace(/\//g, '-');
+                 await scrapeAndSaveJ18Trend(dateIso, fixture.venue);
+                 await scrapeAndSaveJ18Payout(dateIso, fixture.venue);
+             } catch (e: any) {
+                 console.error('[Scheduler] Error fetching J18 data:', e.message);
+             }
+         }
+    }, {
+        timezone: "Asia/Hong_Kong"
+    });
+
+    // 3. Post-Race Final Sync at 23:30 PM (HKT)
+    cron.schedule('30 23 * * *', async () => {
+        console.log('[Scheduler] Running Post-Race Final Sync...');
         
-    }, 5 * 60 * 1000); // 5 minutes
+        const fixture = await getTodayFixture();
+        if (fixture) {
+            await checkAndFetchJ18();
+        }
+    }, {
+        timezone: "Asia/Hong_Kong"
+    });
+    */
+    
+    console.log('[Scheduler] Automatic tasks are currently disabled.');
+}
+
+async function getTodayFixture(): Promise<RaceFixture | undefined> {
+    const today = new Date();
+    const hkDate = new Date(today.toLocaleString("en-US", { timeZone: "Asia/Hong_Kong" }));
+    
+    const y = hkDate.getFullYear();
+    const m = hkDate.getMonth() + 1;
+    const d = hkDate.getDate();
+    const todayStr = `${y}/${m.toString().padStart(2, '0')}/${d.toString().padStart(2, '0')}`;
+    
+    const fixtures = await getCachedFixtures(y, m);
+    return fixtures.find(f => f.date === todayStr);
+}
+
+async function isTodayRaceDay(): Promise<boolean> {
+    return !!(await getTodayFixture());
+}
+
+
+async function checkAndFetchJ18() {
+    try {
+        const today = new Date();
+        const hkDate = new Date(today.toLocaleString("en-US", { timeZone: "Asia/Hong_Kong" }));
+        
+        const y = hkDate.getFullYear();
+        const m = hkDate.getMonth() + 1;
+        const d = hkDate.getDate();
+        const todayStr = `${y}/${m.toString().padStart(2, '0')}/${d.toString().padStart(2, '0')}`;
+        
+        // 1. Get Fixtures
+        const fixtures = await getCachedFixtures(y, m);
+        const todayFixture = fixtures.find(f => f.date === todayStr);
+        
+        if (todayFixture) {
+            console.log(`[Scheduler] Today (${todayStr}) is a RACE DAY (${todayFixture.venue})! Fetching J18 Data...`);
+            
+            const dateIso = todayStr.replace(/\//g, '-');
+            
+            // Fetch all J18 Data Types
+            // Note: Trend/Like/Payout will auto-create the race in DB
+            await scrapeAndSaveJ18Like(dateIso, todayFixture.venue);
+            await scrapeAndSaveJ18Trend(dateIso, todayFixture.venue);
+            await scrapeAndSaveJ18Payout(dateIso, todayFixture.venue);
+            
+            console.log('[Scheduler] J18 Data Sync completed.');
+        } else {
+            console.log(`[Scheduler] Today (${todayStr}) is NOT a race day. Skipping.`);
+        }
+    } catch (error: any) {
+        console.error('[Scheduler] Error in checkAndFetchJ18:', error.message);
+    }
 }

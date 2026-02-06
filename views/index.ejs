@@ -86,17 +86,16 @@
 
     <h1>🐎 賽馬數據中心</h1>
     <div class="meta-info">
-        分析場次總數: <strong><%= racesCount %></strong> | 最後更新: <%= lastUpdated %> | Server Version: <%= serverVersion %>
+        分析場次總數: <strong><%= racesCount %></strong> | 最後更新: <%= lastUpdated %> | 系統版本: <%= serverVersion %>
     </div>
 
     <div class="nav-bar">
-        <a href="/scrape-data" class="nav-btn">📊 馬匹數據庫</a>
-        <a href="/odds" class="nav-btn" style="background-color: var(--accent-green); color: white;">💰 實時賠率</a>
+        <a href="/analysis/hit-rates" class="nav-btn" style="background-color: var(--accent-blue); color: white; padding: 15px 30px; font-size: 1.2em;">📈 J18 命中率驗證 (新)</a>
     </div>
 
     <!-- New Race Overview Section -->
     <div class="card">
-        <div class="card-title">📅 賽事總覽 (Race Overview)</div>
+        <div class="card-title">📅 賽事總覽</div>
         <% if (Object.keys(groupedRaces).length > 0) { %>
             <% Object.keys(groupedRaces).forEach(date => { %>
                 <div style="margin-bottom: 20px;">

@@ -16,21 +16,44 @@ async function fetchJson<T>(url: string): Promise<T | null> {
     }
 }
 
-// Find Race by Date and RaceNo
-// Note: J18 URLs use YYYY-MM-DD. Our DB stores YYYY-MM-DD.
-async function findRace(date: string, raceNo: number) {
-    // We assume the venue is correct if the date and race number match.
-    // Since HK usually has only one meeting per day, this should be safe.
-    const race = await prisma.race.findFirst({
+// Find Race by Date and RaceNo, or create if missing (if venue provided)
+async function ensureRace(date: string, raceNo: number, venue?: string) {
+    let race = await prisma.race.findFirst({
         where: {
             date: date,
             raceNo: raceNo
         }
     });
+
+    if (!race && venue) {
+        const dateCompact = date.replace(/-/g, '');
+        const hkjcId = `${dateCompact}-${venue}-${raceNo}`;
+        
+        try {
+            race = await prisma.race.create({
+                data: {
+                    hkjcId,
+                    date,
+                    venue,
+                    raceNo,
+                }
+            });
+            console.log(`Created skeleton race: ${hkjcId}`);
+        } catch (e: any) {
+            // Handle race condition where race might be created by parallel process
+            if (e.code === 'P2002') {
+                 race = await prisma.race.findFirst({
+                    where: { date, raceNo }
+                });
+            } else {
+                console.error(`Failed to create race ${hkjcId}:`, e.message);
+            }
+        }
+    }
     return race;
 }
 
-export async function scrapeAndSaveJ18Trend(date: string) {
+export async function scrapeAndSaveJ18Trend(date: string, venue?: string) {
     const url = `https://api.j18.hk/calculate/v1/trend?date=${date}`;
     console.log(`Fetching J18 Trend from ${url}...`);
     
@@ -44,10 +67,10 @@ export async function scrapeAndSaveJ18Trend(date: string) {
 
     for (const [raceNoStr, timePoints] of Object.entries(racesData)) {
         const raceNo = parseInt(raceNoStr);
-        const race = await findRace(date, raceNo);
+        const race = await ensureRace(date, raceNo, venue);
         
         if (!race) {
-            console.warn(`Race not found in DB: ${date} Race ${raceNo}`);
+            console.warn(`Race not found in DB and no venue provided to create it: ${date} Race ${raceNo}`);
             continue;
         }
 
@@ -67,7 +90,7 @@ export async function scrapeAndSaveJ18Trend(date: string) {
     }
 }
 
-export async function scrapeAndSaveJ18Like(date: string) {
+export async function scrapeAndSaveJ18Like(date: string, venue?: string) {
     const url = `https://api.j18.hk/calculate/v1/like?date=${date}`;
     console.log(`Fetching J18 Like from ${url}...`);
     
@@ -81,7 +104,7 @@ export async function scrapeAndSaveJ18Like(date: string) {
 
     for (const [raceNoStr, recommendations] of Object.entries(racesData)) {
         const raceNo = parseInt(raceNoStr);
-        const race = await findRace(date, raceNo);
+        const race = await ensureRace(date, raceNo, venue);
         
         if (!race) {
             console.warn(`Race not found in DB: ${date} Race ${raceNo}`);
@@ -103,7 +126,7 @@ export async function scrapeAndSaveJ18Like(date: string) {
     }
 }
 
-export async function scrapeAndSaveJ18Payout(date: string) {
+export async function scrapeAndSaveJ18Payout(date: string, venue?: string) {
     const url = `https://api.j18.hk/calculate/v1/payout?date=${date}`;
     console.log(`Fetching J18 Payout from ${url}...`);
     
@@ -113,34 +136,28 @@ export async function scrapeAndSaveJ18Payout(date: string) {
         return;
     }
 
-    const payoutsList = data.data.data;
+    const racesData = data.data.data; // Array of items with scene_num
 
-    for (const item of payoutsList) {
+    for (const item of racesData) {
         const raceNo = item.scene_num;
-        const race = await findRace(date, raceNo);
-        
+        const race = await ensureRace(date, raceNo, venue);
+
         if (!race) {
             console.warn(`Race not found in DB: ${date} Race ${raceNo}`);
             continue;
         }
 
-        let parsedPayouts: J18PayoutItem[] = [];
-        try {
-            parsedPayouts = JSON.parse(item.payout);
-        } catch (e) {
-            console.error(`Error parsing payout JSON for Race ${raceNo}:`, e);
-            continue;
-        }
+        const payoutData = JSON.parse(item.payout) as J18PayoutItem[];
 
         await prisma.j18Payout.upsert({
             where: { raceId: race.id },
             update: {
-                payouts: parsedPayouts as any,
+                payouts: payoutData as any,
                 updatedAt: new Date()
             },
             create: {
                 raceId: race.id,
-                payouts: parsedPayouts as any
+                payouts: payoutData as any
             }
         });
         console.log(`Saved J18 Payout for Race ${raceNo}`);

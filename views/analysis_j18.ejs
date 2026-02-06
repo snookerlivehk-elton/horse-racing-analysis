@@ -9,6 +9,7 @@
         body { background-color: #f8f9fa; }
         .highlight-green { background-color: #d4edda; }
         .highlight-red { background-color: #f8d7da; }
+        .highlight-yellow { background-color: #fff3cd; }
         .trend-up { color: #198754; font-weight: bold; }
         .trend-down { color: #dc3545; font-weight: bold; }
         .card { box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: none; margin-bottom: 20px; }
@@ -36,7 +37,7 @@
                             <div class="col-md-4">
                                 <p class="mb-1"><strong>是否命中頭馬?</strong> 
                                     <span class="<%= punditPerf.winnerPicked ? 'text-success fw-bold' : 'text-danger' %>">
-                                        <%= punditPerf.winnerPicked ? 'YES (名次 ' + punditPerf.winnerPickRank + ')' : 'NO' %>
+                                        <%= punditPerf.winnerPicked ? '是 (名次 ' + punditPerf.winnerPickRank + ')' : '否' %>
                                     </span>
                                 </p>
                             </div>
@@ -45,7 +46,59 @@
                             </div>
                         </div>
                     <% } else { %>
-                        <p class="text-muted mb-0">暫無評家數據 (需執行 J18 Like 爬蟲)</p>
+                        <p class="text-muted mb-0">暫無評家數據 (需執行 J18 心水爬蟲)</p>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trend Analysis (Rank Change) -->
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header bg-info text-white">📊 走勢分析 (排名變動)</div>
+                <div class="card-body p-0">
+                    <% if (trendAnalysis && trendAnalysis.length > 0) { %>
+                    <table class="table table-sm table-striped mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>馬號</th>
+                                <th>馬名</th>
+                                <th>起步排名</th>
+                                <th>最終排名</th>
+                                <th>排名變動</th>
+                                <th>狀態</th>
+                                <th>最終名次</th>
+                                <th>獨贏賠率</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% trendAnalysis.sort((a,b) => b.rankChange - a.rankChange).forEach(t => { %>
+                                <tr class="<%= t.isBigMover ? 'highlight-green' : (t.isSteadyFavorite ? 'highlight-yellow' : '') %>">
+                                    <td>#<%= t.horseNumber %></td>
+                                    <td><%= t.horseName %></td>
+                                    <td><%= t.startRank %></td>
+                                    <td><%= t.endRank %></td>
+                                    <td class="<%= t.rankChange > 0 ? 'trend-up' : (t.rankChange < 0 ? 'trend-down' : '') %>">
+                                        <%= t.rankChange > 0 ? '+' : '' %><%= t.rankChange %>
+                                    </td>
+                                    <td>
+                                        <% if (t.isBigMover) { %>
+                                            <span class="badge bg-success">大幅提升</span>
+                                        <% } else if (t.isSteadyFavorite) { %>
+                                            <span class="badge bg-warning text-dark">穩健熱門</span>
+                                        <% } %>
+                                    </td>
+                                    <td><%= t.finalPlacing || '-' %></td>
+                                    <td><%= t.winOdds || '-' %></td>
+                                </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                    <% } else { %>
+                        <div class="p-3 text-muted text-center">
+                            暫無走勢數據<br>
+                            <small>(需有 J18 綜合走勢記錄)</small>
+                        </div>
                     <% } %>
                 </div>
             </div>
@@ -54,15 +107,15 @@
         <!-- Odds Drops -->
         <div class="col-md-6">
             <div class="card">
-                <div class="card-header bg-success text-white">📉 賠率回飛 (T-30 vs T-0)</div>
+                <div class="card-header bg-success text-white">📉 賠率回飛 (賽前30分 vs 開跑)</div>
                 <div class="card-body p-0">
                     <% if (oddsDrops && oddsDrops.length > 0) { %>
                     <table class="table table-sm table-striped mb-0">
                         <thead class="table-light">
                             <tr>
                                 <th>馬號</th>
-                                <th>T-30</th>
-                                <th>T-0</th>
+                                <th>賽前30分</th>
+                                <th>開跑</th>
                                 <th>跌幅 %</th>
                                 <th>急跌?</th>
                             </tr>

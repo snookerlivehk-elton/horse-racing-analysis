@@ -12,8 +12,10 @@ import { updateAllHorseProfiles } from './services/profileService';
 import { scrapeRaceTrackwork } from './services/trackworkScraper';
 import { scrapeAndSaveJ18Trend, scrapeAndSaveJ18Like, scrapeAndSaveJ18Payout } from './services/j18Service';
 import { calculateOddsDrops, calculateFundFlow, calculatePunditPerf } from './services/statsService';
+import { AnalysisService } from './services/analysisService';
 
 const app = express();
+const analysisService = new AnalysisService();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json()); // Enable JSON body parsing
@@ -536,12 +538,14 @@ app.get('/analysis/j18/:raceId', async (req, res) => {
         const oddsDrops = await calculateOddsDrops(raceId);
         const fundFlow = await calculateFundFlow(raceId);
         const punditPerf = await calculatePunditPerf(raceId);
+        const trendAnalysis = await analysisService.getRaceTrendAnalysis(raceId);
 
         res.render('analysis_j18', {
             race,
             oddsDrops,
             fundFlow,
-            punditPerf
+            punditPerf,
+            trendAnalysis
         });
     } catch (e: any) {
         console.error('Analysis View Error:', e);
@@ -670,6 +674,55 @@ app.get('/', async (req, res) => {
             serverVersion: VERSION,
             groupedRaces: {} // Pass empty object on error to prevent view crash
         });
+    }
+});
+
+// J18 Analysis - System Stats
+app.get('/stats', (req, res) => {
+    res.render('stats');
+});
+
+app.get('/api/analysis/stats/system', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const stats = await analysisService.getSystemStats(
+            startDate as string,
+            endDate as string
+        );
+        res.json(stats);
+    } catch (error: any) {
+        console.error('Error fetching system stats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// J18 Analysis - Race Trend
+app.get('/api/analysis/stats/race/:raceId', async (req, res) => {
+    try {
+        const stats = await analysisService.getRaceTrendAnalysis(req.params.raceId);
+        res.json(stats);
+    } catch (error: any) {
+        console.error('Error fetching race trend stats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// J18 Analysis - Hit Rates (New Feature)
+app.get('/analysis/hit-rates', (req, res) => {
+    res.render('analysis_hit_rates');
+});
+
+app.get('/api/analysis/hit-rates', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const stats = await analysisService.getHitRateStats(
+            startDate as string,
+            endDate as string
+        );
+        res.json(stats);
+    } catch (error: any) {
+        console.error('Error fetching hit rate stats:', error);
+        res.status(500).json({ error: error.message });
     }
 });
 
