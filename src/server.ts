@@ -11,13 +11,17 @@ import { startScheduler } from './services/schedulerService';
 import { updateAllHorseProfiles } from './services/profileService';
 import { scrapeRaceTrackwork } from './services/trackworkScraper';
 import { scrapeAndSaveJ18Trend, scrapeAndSaveJ18Like, scrapeAndSaveJ18Payout } from './services/j18Service';
-import { calculateOddsDrops } from './services/statsService';
+import { calculateOddsDrops, calculateFundFlow, calculatePunditPerf } from './services/statsService';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json()); // Enable JSON body parsing
 app.use(express.urlencoded({ extended: true }));
+
+// View Engine Setup
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, '../views'));
 
 // Enable CORS for Client-Side Extension
 app.use((req, res, next) => {
@@ -498,6 +502,50 @@ app.get('/api/stats/odds-drop/:raceId', async (req, res) => {
     } catch (e: any) {
         console.error('Odds Drop Calc Error:', e);
         res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/stats/fund-flow/:raceId', async (req, res) => {
+    try {
+        const raceId = req.params.raceId;
+        const flows = await calculateFundFlow(raceId);
+        res.json(flows);
+    } catch (e: any) {
+        console.error('Fund Flow Calc Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/api/stats/pundit-perf/:raceId', async (req, res) => {
+    try {
+        const raceId = req.params.raceId;
+        const perf = await calculatePunditPerf(raceId);
+        res.json(perf);
+    } catch (e: any) {
+        console.error('Pundit Perf Calc Error:', e);
+        res.status(500).json({ error: e.message });
+    }
+});
+
+app.get('/analysis/j18/:raceId', async (req, res) => {
+    try {
+        const raceId = req.params.raceId;
+        const race = await prisma.race.findUnique({ where: { id: raceId } });
+        if (!race) return res.status(404).send('Race not found');
+
+        const oddsDrops = await calculateOddsDrops(raceId);
+        const fundFlow = await calculateFundFlow(raceId);
+        const punditPerf = await calculatePunditPerf(raceId);
+
+        res.render('analysis_j18', {
+            race,
+            oddsDrops,
+            fundFlow,
+            punditPerf
+        });
+    } catch (e: any) {
+        console.error('Analysis View Error:', e);
+        res.status(500).send(e.message);
     }
 });
 
