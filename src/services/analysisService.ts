@@ -276,90 +276,175 @@ export class AnalysisService {
         return analysis;
     }
 
-    // 3. Hit Rate Analysis (Win/Q/T/F4)
+    // 3. Hit Rate Analysis (Win/Q/T/F4) - Multi-Source
     async getHitRateStats(startDate?: string, endDate?: string) {
+        const results: Record<string, any> = {};
         const whereClause: any = {};
         if (startDate && endDate) {
             whereClause.date = { gte: startDate, lte: endDate };
         }
 
+        // Fetch all relevant races with results
         const races = await prisma.race.findMany({
             where: {
                 ...whereClause,
-                j18Likes: { some: {} },
-                results: { some: {} }
+                j18Payouts: { some: {} }
             },
             include: {
+                results: true,
                 j18Likes: true,
-                results: true
+                j18Payouts: true,
+                j18Trends: true,
+                strategyPicks: {
+                    include: { strategyTest: true }
+                }
             }
         });
 
+        // 1. J18 Pundit Stats
+        const punditPicks = new Map<string, number[]>();
+        races.forEach(r => {
+            if (r.j18Likes.length > 0) {
+                punditPicks.set(r.id, r.j18Likes[0].recommendations as number[]);
+            }
+        });
+        results['J18 Pundit'] = this.calculateHits(punditPicks, races);
+
+        // 2. Composite Stats
+        const compositePicks = new Map<string, number[]>();
+        races.forEach(r => {
+            const horseScores = new Map<number, number>();
+            const scoreMap = [6, 5, 4, 3, 2, 1];
+
+            // Pundit Scores
+            if (r.j18Likes.length > 0) {
+                const picks = r.j18Likes[0].recommendations as number[];
+                picks.slice(0, 6).forEach((h, i) => horseScores.set(h, (horseScores.get(h) || 0) + scoreMap[i]));
+            }
+
+            // Trend Scores
+            if (r.j18Trends.length > 0) {
+                const trends = r.j18Trends[0].trends as unknown as Record<string, string[]>;
+                ['30', '15', '10', '5'].forEach(key => {
+                    if (trends[key]) {
+                        trends[key].slice(0, 6).map(Number).forEach((h, i) => 
+                            horseScores.set(h, (horseScores.get(h) || 0) + scoreMap[i]));
+                    }
+                });
+            }
+
+            if (horseScores.size > 0) {
+                const sorted = Array.from(horseScores.entries())
+                    .sort((a, b) => b[1] - a[1])
+                    .map(e => e[0]);
+                compositePicks.set(r.id, sorted);
+            }
+        });
+        results['Composite'] = this.calculateHits(compositePicks, races);
+
+        // 3. Trend Stats (T30 to T0)
+        const trendKeys = ['30', '15', '10', '5', '0'];
+        const trendStatsObj: Record<string, any> = {};
+        
+        for (const key of trendKeys) {
+            const trendPicks = new Map<string, number[]>();
+            races.forEach(r => {
+                if (r.j18Trends.length > 0) {
+                    const trends = r.j18Trends[0].trends as unknown as Record<string, string[]>;
+                    if (trends[key]) {
+                        trendPicks.set(r.id, trends[key].map(Number));
+                    }
+                }
+            });
+            const stats = this.calculateHits(trendPicks, races);
+            results[`Trend T-${key}`] = stats;
+            trendStatsObj[key] = stats;
+        }
+
+        // 4. Strategy Stats
+        const strategyMap = new Map<string, { name: string, picks: Map<string, number[]> }>();
+        races.forEach(r => {
+            r.strategyPicks.forEach(sp => {
+                const stratId = sp.strategyTestId;
+                if (!strategyMap.has(stratId)) {
+                    strategyMap.set(stratId, { 
+                        name: sp.strategyTest.name, 
+                        picks: new Map() 
+                    });
+                }
+                strategyMap.get(stratId)!.picks.set(r.id, sp.picks);
+            });
+        });
+
+        for (const [id, data] of strategyMap.entries()) {
+            results[`Strategy: ${data.name}`] = this.calculateHits(data.picks, races);
+        }
+
+        // Backward Compatibility for index.ejs
+        results.punditStats = results['J18 Pundit'];
+        results.compositeStats = results['Composite'];
+        results.trendStats = trendStatsObj;
+        results.totalRaces = races.length; // index.ejs uses totalRaces at top level
+
+        return results;
+    }
+
+    // Helper: Calculate Hits & Financials for a set of races and picks
+    private calculateHits(picksMap: Map<string, number[]>, races: any[]) {
         const stats = {
             totalRaces: 0,
-            win: { hits: 0, rate: 0 }, // Top 2 picks contain Winner
-            q: { hits: 0, rate: 0 },   // Top 3 picks contain Top 2 (Q)
-            t: { hits: 0, rate: 0 },   // Top 4 picks contain Top 3 (T)
-            f4: { hits: 0, rate: 0 }   // Top 6 picks contain Top 4 (F4)
+            win: { hits: 0, rate: 0, revenue: 0, cost: 0, net: 0, roi: 0 },
+            q: { hits: 0, rate: 0, revenue: 0, cost: 0, net: 0, roi: 0 },
+            t: { hits: 0, rate: 0, revenue: 0, cost: 0, net: 0, roi: 0 },
+            f4: { hits: 0, rate: 0, revenue: 0, cost: 0, net: 0, roi: 0 }
         };
 
         for (const race of races) {
-            if (!race.j18Likes[0] || race.results.length === 0) continue;
+            const picks = picksMap.get(race.id);
+            if (!picks || picks.length === 0) continue;
 
-            const picks = race.j18Likes[0].recommendations as number[];
-            const results = race.results;
-
-            // Get actual placings
-            const winner = results.find(r => r.place === 1)?.horseNo;
-            const top2 = results.filter(r => r.place && r.place <= 2).map(r => r.horseNo);
-            const top3 = results.filter(r => r.place && r.place <= 3).map(r => r.horseNo);
-            const top4 = results.filter(r => r.place && r.place <= 4).map(r => r.horseNo);
-
-            if (!winner) continue; // Skip if no results
+            if (!race.j18Payouts || race.j18Payouts.length === 0) continue;
+            
+            const payouts = race.j18Payouts[0].payouts;
+            const res = this.calculateRaceRewards(payouts, picks);
 
             stats.totalRaces++;
 
-            // Win Hit: Winner in Top 2 picks
-            // Logic: Is the winner present in the first 2 picks?
-            if (picks.slice(0, 2).includes(winner)) {
-                stats.win.hits++;
-            }
+            // Accumulate Financials & Hits
+            stats.win.cost += res.win.cost;
+            stats.win.revenue += res.win.rev;
+            if (res.win.hit) stats.win.hits++;
 
-            // Q Hit: Top 2 horses in Top 3 picks
-            // Logic: Do the first 3 picks contain at least 2 horses from the actual Top 2?
-            const qMatches = picks.slice(0, 3).filter(p => top2.includes(p));
-            if (qMatches.length >= 2) {
-                stats.q.hits++;
-            }
+            stats.q.cost += res.q.cost;
+            stats.q.revenue += res.q.rev;
+            if (res.q.hit) stats.q.hits++;
 
-            // T Hit: Top 3 horses in Top 4 picks
-            // Logic: Do the first 4 picks contain at least 3 horses from the actual Top 3? (Boxed Tierce)
-            const tMatches = picks.slice(0, 4).filter(p => top3.includes(p));
-            if (tMatches.length >= 3) {
-                stats.t.hits++;
-            }
+            stats.t.cost += res.t.cost;
+            stats.t.revenue += res.t.rev;
+            if (res.t.hit) stats.t.hits++;
 
-            // F4 Hit: Top 4 horses in Top 6 picks
-            // Logic: Do the first 6 picks contain at least 4 horses from the actual Top 4? (Boxed First 4)
-            const f4Matches = picks.slice(0, 6).filter(p => top4.includes(p));
-            if (f4Matches.length >= 4) {
-                stats.f4.hits++;
-            }
+            stats.f4.cost += res.f4.cost;
+            stats.f4.revenue += res.f4.rev;
+            if (res.f4.hit) stats.f4.hits++;
         }
 
-        // Calculate Rates
         if (stats.totalRaces > 0) {
-            stats.win.rate = parseFloat(((stats.win.hits / stats.totalRaces) * 100).toFixed(1));
-            stats.q.rate = parseFloat(((stats.q.hits / stats.totalRaces) * 100).toFixed(1));
-            stats.t.rate = parseFloat(((stats.t.hits / stats.totalRaces) * 100).toFixed(1));
-            stats.f4.rate = parseFloat(((stats.f4.hits / stats.totalRaces) * 100).toFixed(1));
+            const calc = (s: any) => {
+                s.rate = parseFloat(((s.hits / stats.totalRaces) * 100).toFixed(1));
+                s.net = s.revenue - s.cost;
+                s.roi = s.cost > 0 ? parseFloat(((s.net / s.cost) * 100).toFixed(1)) : 0;
+            };
+            calc(stats.win);
+            calc(stats.q);
+            calc(stats.t);
+            calc(stats.f4);
         }
 
         return stats;
     }
 
     // 4. Daily Hit Rate Statistics (For Charts & Tables)
-    async getDailyStats(startDate: string, endDate: string, type: 'pundit' | 'trend' | 'composite', trendKey?: string) {
+    async getDailyStats(startDate: string, endDate: string, type: 'pundit' | 'trend' | 'composite' | 'strategy', trendKey?: string) {
         const whereClause: any = {
             date: { gte: startDate, lte: endDate },
             j18Payouts: { some: {} }
@@ -370,7 +455,10 @@ export class AnalysisService {
             include: {
                 j18Likes: true,
                 j18Trends: true,
-                j18Payouts: true
+                j18Payouts: true,
+                strategyPicks: type === 'strategy' ? {
+                    where: { strategyTestId: trendKey }
+                } : false
             },
             orderBy: { date: 'desc' }
         });
@@ -415,6 +503,10 @@ export class AnalysisService {
             if (type === 'pundit') {
                 if (race.j18Likes[0]) {
                     picks = race.j18Likes[0].recommendations as unknown as number[];
+                }
+            } else if (type === 'strategy' && trendKey) {
+                if (race.strategyPicks && race.strategyPicks.length > 0) {
+                    picks = race.strategyPicks[0].picks;
                 }
             } else if (type === 'trend' && trendKey) {
                 if (race.j18Trends[0]) {

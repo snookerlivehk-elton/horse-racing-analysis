@@ -118,6 +118,7 @@
 
     <div style="position: absolute; top: 20px; right: 20px; display: flex; gap: 10px;">
         <a href="/speedpro" class="nav-link" style="position: static; background-color: #fbbf24; color: black;">⚡ 速勢能量分析</a>
+        <a href="/analysis/speedpro-lab" class="nav-link" style="position: static; background-color: #f59e0b;">🧪 實驗室</a>
         <a href="/scrape-data" class="nav-link" style="position: static; background-color: #8b5cf6;">🛠️ 管理排位表 / 爬蟲</a>
         <a href="/analysis/daily" class="nav-link" style="position: static;">📈 每日趨勢圖表</a>
     </div>
@@ -298,10 +299,10 @@
             const pRow = `
                 <tr>
                     <td>整體表現</td>
-                    <td>${formatPct(p.winHit, p.count, p.winRevenue, p.winCost)}</td>
-                    <td>${formatPct(p.qHit, p.count, p.qRevenue, p.qCost)}</td>
-                    <td>${formatPct(p.tHit, p.count, p.tRevenue, p.tCost)}</td>
-                    <td>${formatPct(p.f4Hit, p.count, p.f4Revenue, p.f4Cost)}</td>
+                    <td>${formatPct(p.win.hits, p.totalRaces, p.win.revenue, p.win.cost)}</td>
+                    <td>${formatPct(p.q.hits, p.totalRaces, p.q.revenue, p.q.cost)}</td>
+                    <td>${formatPct(p.t.hits, p.totalRaces, p.t.revenue, p.t.cost)}</td>
+                    <td>${formatPct(p.f4.hits, p.totalRaces, p.f4.revenue, p.f4.cost)}</td>
                 </tr>
             `;
             document.getElementById('punditTable').innerHTML = pRow;
@@ -312,10 +313,10 @@
                 const cRow = `
                     <tr>
                         <td>綜合評分</td>
-                        <td>${formatPct(c.winHit, c.count, c.winRevenue, c.winCost)}</td>
-                        <td>${formatPct(c.qHit, c.count, c.qRevenue, c.qCost)}</td>
-                        <td>${formatPct(c.tHit, c.count, c.tRevenue, c.tCost)}</td>
-                        <td>${formatPct(c.f4Hit, c.count, c.f4Revenue, c.f4Cost)}</td>
+                        <td>${formatPct(c.win.hits, c.totalRaces, c.win.revenue, c.win.cost)}</td>
+                        <td>${formatPct(c.q.hits, c.totalRaces, c.q.revenue, c.q.cost)}</td>
+                        <td>${formatPct(c.t.hits, c.totalRaces, c.t.revenue, c.t.cost)}</td>
+                        <td>${formatPct(c.f4.hits, c.totalRaces, c.f4.revenue, c.f4.cost)}</td>
                     </tr>
                 `;
                 document.getElementById('compositeTable').innerHTML = cRow;
@@ -332,11 +333,11 @@
                 const row = `
                     <tr>
                         <td>T-${key}</td>
-                        <td>${formatPct(t.winHit, t.count, t.winRevenue, t.winCost)}</td>
-                        <td>${formatPct(t.qHit, t.count, t.qRevenue, t.qCost)}</td>
-                        <td>${formatPct(t.tHit, t.count, t.tRevenue, t.tCost)}</td>
-                        <td>${formatPct(t.f4Hit, t.count, t.f4Revenue, t.f4Cost)}</td>
-                        <td>${t.count}</td>
+                        <td>${formatPct(t.win.hits, t.totalRaces, t.win.revenue, t.win.cost)}</td>
+                        <td>${formatPct(t.q.hits, t.totalRaces, t.q.revenue, t.q.cost)}</td>
+                        <td>${formatPct(t.t.hits, t.totalRaces, t.t.revenue, t.t.cost)}</td>
+                        <td>${formatPct(t.f4.hits, t.totalRaces, t.f4.revenue, t.f4.cost)}</td>
+                        <td>${t.totalRaces}</td>
                     </tr>
                 `;
                 trendTable.innerHTML += row;

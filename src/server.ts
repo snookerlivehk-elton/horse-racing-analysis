@@ -896,7 +896,7 @@ app.get('/api/analysis/daily-stats', async (req, res) => {
         const stats = await analysisService.getDailyStats(
             startDate as string,
             endDate as string,
-            type as 'pundit' | 'trend' | 'composite',
+            type as 'pundit' | 'trend' | 'composite' | 'strategy',
             trendKey as string
         );
         res.json(stats);

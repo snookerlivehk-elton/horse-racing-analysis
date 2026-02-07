@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analysis Pundit 命中率分析</title>
+    <title>J18 命中率分析總覽</title>
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -47,53 +47,42 @@
 
         .nav-btn:hover { opacity: 0.8; }
 
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
+        .table-container {
             max-width: 1200px;
             margin: 0 auto;
-        }
-
-        .stat-card {
+            overflow-x: auto;
             background: var(--bg-panel);
-            padding: 25px;
-            border-radius: 12px;
-            text-align: center;
+            border-radius: 8px;
+            padding: 20px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            border: 1px solid var(--border-color);
-            transition: transform 0.2s;
         }
 
-        .stat-card:hover { transform: translateY(-5px); }
-
-        .stat-title {
-            font-size: 1.2em;
-            color: var(--accent-gold);
-            margin-bottom: 15px;
-            font-weight: bold;
-        }
-
-        .stat-value {
-            font-size: 3em;
-            font-weight: bold;
-            margin: 10px 0;
-            color: var(--text-main);
-        }
-
-        .stat-sub {
-            font-size: 0.9em;
-            color: var(--text-muted);
+        table {
+            width: 100%;
+            border-collapse: collapse;
             margin-top: 10px;
         }
 
-        .stat-desc {
-            font-size: 0.8em;
-            color: var(--text-muted);
-            margin-top: 15px;
-            border-top: 1px solid var(--border-color);
-            padding-top: 10px;
+        th, td {
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
         }
+
+        th {
+            color: var(--accent-gold);
+            font-weight: bold;
+            font-size: 1.1em;
+            text-align: left;
+        }
+
+        td { font-size: 1em; }
+        
+        td:first-child { text-align: left; font-weight: bold; color: var(--accent-blue); }
+
+        .rate-high { color: var(--accent-green); font-weight: bold; }
+        .rate-mid { color: var(--accent-gold); }
+        .rate-low { color: var(--text-muted); }
 
         .loading { text-align: center; font-size: 1.2em; color: var(--text-muted); margin-top: 50px; }
     </style>
@@ -101,45 +90,28 @@
 <body>
     <div class="nav-bar">
         <a href="/" class="nav-btn">🏠 返回首頁</a>
-        <a href="/analysis/hit-rates" class="nav-btn" style="background-color: var(--accent-gold); color: black;">🎯 命中率分析</a>
+        <a href="/analysis/daily" class="nav-btn">📈 每日趨勢</a>
+        <a href="/analysis/speedpro-lab" class="nav-btn">🧪 SpeedPro 實驗室</a>
     </div>
 
-    <h1>Analysis Pundit 命中率分析</h1>
+    <h1>🎯 策略與 J18 命中率分析總覽</h1>
 
     <div id="loading" class="loading">載入數據中...</div>
 
-    <div id="dashboard" class="dashboard-grid" style="display: none;">
-        <!-- Win Card -->
-        <div class="stat-card">
-            <div class="stat-title">獨贏 (Win)</div>
-            <div class="stat-value" id="win-rate">--%</div>
-            <div class="stat-sub" id="win-hits">Hits: -- / --</div>
-            <div class="stat-desc">Top 2 貼士包含頭馬 (冠)</div>
-        </div>
-
-        <!-- Q Card -->
-        <div class="stat-card">
-            <div class="stat-title">連贏 (Q)</div>
-            <div class="stat-value" id="q-rate">--%</div>
-            <div class="stat-sub" id="q-hits">Hits: -- / --</div>
-            <div class="stat-desc">Top 3 貼士包含冠亞</div>
-        </div>
-
-        <!-- T Card -->
-        <div class="stat-card">
-            <div class="stat-title">三重彩 (T)</div>
-            <div class="stat-value" id="t-rate">--%</div>
-            <div class="stat-sub" id="t-hits">Hits: -- / --</div>
-            <div class="stat-desc">Top 4 貼士包含冠亞季</div>
-        </div>
-
-        <!-- F4 Card -->
-        <div class="stat-card">
-            <div class="stat-title">四重彩 (F4)</div>
-            <div class="stat-value" id="f4-rate">--%</div>
-            <div class="stat-sub" id="f4-hits">Hits: -- / --</div>
-            <div class="stat-desc">Top 6 貼士包含前四名</div>
-        </div>
+    <div id="dashboard" class="table-container" style="display: none;">
+        <table>
+            <thead>
+                <tr>
+                    <th width="25%">來源 (Source)</th>
+                    <th width="10%">總場數</th>
+                    <th width="15%">獨贏 (Win)<br><span style="font-size:0.8em; color:gray">Top 2 含冠</span></th>
+                    <th width="15%">連贏 (Q)<br><span style="font-size:0.8em; color:gray">Top 3 含冠亞</span></th>
+                    <th width="15%">三重彩 (T)<br><span style="font-size:0.8em; color:gray">Top 4 含冠亞季</span></th>
+                    <th width="20%">四重彩 (F4)<br><span style="font-size:0.8em; color:gray">Top 6 含前四</span></th>
+                </tr>
+            </thead>
+            <tbody id="stats-body"></tbody>
+        </table>
     </div>
 
     <script>
@@ -147,31 +119,45 @@
             try {
                 const response = await fetch('/api/analysis/stats/hit-rates');
                 const data = await response.json();
+                
+                // data is Record<string, Stats>
+                const tbody = document.getElementById('stats-body');
+                tbody.innerHTML = '';
 
-                if (data) {
-                    // Update Win
-                    document.getElementById('win-rate').textContent = `${data.win.rate}%`;
-                    document.getElementById('win-hits').textContent = `Hits: ${data.win.hits} / ${data.totalRaces}`;
+                if (data && Object.keys(data).length > 0) {
+                    const ignoredKeys = ['punditStats', 'compositeStats', 'trendStats', 'totalRaces'];
                     
-                    // Update Q
-                    document.getElementById('q-rate').textContent = `${data.q.rate}%`;
-                    document.getElementById('q-hits').textContent = `Hits: ${data.q.hits} / ${data.totalRaces}`;
+                    Object.entries(data).forEach(([name, stats]) => {
+                        // Filter out legacy keys and invalid structures
+                        if (ignoredKeys.includes(name) || !stats || !stats.win) return;
 
-                    // Update T
-                    document.getElementById('t-rate').textContent = `${data.t.rate}%`;
-                    document.getElementById('t-hits').textContent = `Hits: ${data.t.hits} / ${data.totalRaces}`;
-
-                    // Update F4
-                    document.getElementById('f4-rate').textContent = `${data.f4.rate}%`;
-                    document.getElementById('f4-hits').textContent = `Hits: ${data.f4.hits} / ${data.totalRaces}`;
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${name}</td>
+                            <td>${stats.totalRaces}</td>
+                            <td class="${getColor(stats.win.rate)}">${stats.win.rate}% <span style="font-size:0.8em;color:#666">(${stats.win.hits})</span></td>
+                            <td class="${getColor(stats.q.rate)}">${stats.q.rate}% <span style="font-size:0.8em;color:#666">(${stats.q.hits})</span></td>
+                            <td class="${getColor(stats.t.rate)}">${stats.t.rate}% <span style="font-size:0.8em;color:#666">(${stats.t.hits})</span></td>
+                            <td class="${getColor(stats.f4.rate)}">${stats.f4.rate}% <span style="font-size:0.8em;color:#666">(${stats.f4.hits})</span></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
 
                     document.getElementById('loading').style.display = 'none';
-                    document.getElementById('dashboard').style.display = 'grid';
+                    document.getElementById('dashboard').style.display = 'block';
+                } else {
+                    document.getElementById('loading').textContent = '暫無數據';
                 }
             } catch (error) {
                 console.error('Error loading stats:', error);
-                document.getElementById('loading').textContent = '載入失敗';
+                document.getElementById('loading').textContent = '載入失敗: ' + error.message;
             }
+        }
+
+        function getColor(rate) {
+            if (rate >= 50) return 'rate-high';
+            if (rate >= 30) return 'rate-mid';
+            return 'rate-low';
         }
 
         loadStats();
