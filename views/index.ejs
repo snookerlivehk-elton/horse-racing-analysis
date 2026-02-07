@@ -172,6 +172,26 @@
             </tbody>
         </table>
 
+        <!-- Composite Stats -->
+        <div class="section-title">🔥 綜合熱度 (Composite Heat)</div>
+        <div style="font-size: 0.9em; color: #888; margin-bottom: 10px;">
+            * 綜合分數計算: 名家(Pundit) + 賠率走勢(T30, T15, T10, T5)。每項排名第1-6位分別得6-1分。
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>項目</th>
+                    <th>頭兩位中冠軍 (Win)</th>
+                    <th>頭三位中連贏 (Q)</th>
+                    <th>頭四位中三重彩 (T)</th>
+                    <th>頭六位中四重彩 (F4)</th>
+                </tr>
+            </thead>
+            <tbody id="compositeTable">
+                <!-- JS will populate -->
+            </tbody>
+        </table>
+
         <!-- Trend Stats -->
         <div class="section-title">📈 綜合走勢 (J18 Trend) - T30至T0</div>
         <table>
@@ -273,6 +293,21 @@
                 </tr>
             `;
             document.getElementById('punditTable').innerHTML = pRow;
+
+            // Render Composite Stats
+            if (data.compositeStats) {
+                const c = data.compositeStats;
+                const cRow = `
+                    <tr>
+                        <td>綜合評分</td>
+                        <td>${formatPct(c.winHit, c.count, c.winRevenue, c.winCost)}</td>
+                        <td>${formatPct(c.qHit, c.count, c.qRevenue, c.qCost)}</td>
+                        <td>${formatPct(c.tHit, c.count, c.tRevenue, c.tCost)}</td>
+                        <td>${formatPct(c.f4Hit, c.count, c.f4Revenue, c.f4Cost)}</td>
+                    </tr>
+                `;
+                document.getElementById('compositeTable').innerHTML = cRow;
+            }
 
             // Render Trend Stats
             const trendTable = document.getElementById('trendTable');

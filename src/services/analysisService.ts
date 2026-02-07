@@ -315,6 +315,11 @@ export class AnalysisService {
                 winRevenue: 0, qRevenue: 0, tRevenue: 0, f4Revenue: 0,
                 winCost: 0, qCost: 0, tCost: 0, f4Cost: 0
             },
+            compositeStats: { 
+                winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0,
+                winRevenue: 0, qRevenue: 0, tRevenue: 0, f4Revenue: 0,
+                winCost: 0, qCost: 0, tCost: 0, f4Cost: 0
+            },
             trendStats: {} as Record<string, { 
                 winHit: number, qHit: number, tHit: number, f4Hit: number, count: number,
                 winRevenue: number, qRevenue: number, tRevenue: number, f4Revenue: number,
@@ -355,7 +360,56 @@ export class AnalysisService {
                 }
             }
 
-            // 2. Trend Stats
+            // 2. Composite Stats (Pundit + T30, T15, T10, T5)
+            const horseScores = new Map<number, number>();
+            const scoreMap = [6, 5, 4, 3, 2, 1]; // Points for Rank 1-6
+
+            // Add Pundit Scores
+            if (race.j18Likes[0]) {
+                const picks = race.j18Likes[0].recommendations as unknown as number[];
+                if (picks) {
+                    picks.slice(0, 6).forEach((horse, idx) => {
+                        const current = horseScores.get(horse) || 0;
+                        horseScores.set(horse, current + scoreMap[idx]);
+                    });
+                }
+            }
+
+            // Add Trend Scores
+            if (race.j18Trends[0]) {
+                const trendsData = race.j18Trends[0].trends as unknown as Record<string, string[]>;
+                ['30', '15', '10', '5'].forEach(key => {
+                    if (trendsData[key]) {
+                        const picks = trendsData[key].map(Number);
+                        picks.slice(0, 6).forEach((horse, idx) => {
+                            const current = horseScores.get(horse) || 0;
+                            horseScores.set(horse, current + scoreMap[idx]);
+                        });
+                    }
+                });
+            }
+
+            // Sort by Score Descending
+            const compositePicks = Array.from(horseScores.entries())
+                .sort((a, b) => b[1] - a[1]) // Sort by score desc
+                .map(entry => entry[0]);
+
+            if (compositePicks.length > 0) {
+                const res = this.calculateRaceRewards(payouts, compositePicks);
+                stats.compositeStats.count++;
+                
+                stats.compositeStats.winCost += res.win.cost;
+                stats.compositeStats.qCost += res.q.cost;
+                stats.compositeStats.tCost += res.t.cost;
+                stats.compositeStats.f4Cost += res.f4.cost;
+
+                if (res.win.hit) { stats.compositeStats.winHit++; stats.compositeStats.winRevenue += res.win.rev; }
+                if (res.q.hit) { stats.compositeStats.qHit++; stats.compositeStats.qRevenue += res.q.rev; }
+                if (res.t.hit) { stats.compositeStats.tHit++; stats.compositeStats.tRevenue += res.t.rev; }
+                if (res.f4.hit) { stats.compositeStats.f4Hit++; stats.compositeStats.f4Revenue += res.f4.rev; }
+            }
+
+            // 3. Trend Stats
             if (race.j18Trends[0]) {
                 const trendsData = race.j18Trends[0].trends as unknown as Record<string, string[]>;
                 Object.keys(trendsData).forEach(timeKey => {
