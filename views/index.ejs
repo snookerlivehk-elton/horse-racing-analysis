@@ -133,6 +133,9 @@
             <button onclick="fetchStats('1w')">1 星期</button>
             <button onclick="fetchStats('1m')">1 個月</button>
             <button onclick="fetchStats('3m')">3 個月</button>
+            <button onclick="fetchStats('6m')">6 個月</button>
+            <button onclick="fetchStats('9m')">9 個月</button>
+            <button onclick="fetchStats('1y')">1 年</button>
         </div>
     </div>
 
@@ -236,6 +239,15 @@
             } else if (period === '3m') {
                 endDate.setMonth(startDate.getMonth() + 3);
                 label = `${startDateStr} 至 ${endDate.toISOString().split('T')[0]} (3 個月)`;
+            } else if (period === '6m') {
+                endDate.setMonth(startDate.getMonth() + 6);
+                label = `${startDateStr} 至 ${endDate.toISOString().split('T')[0]} (6 個月)`;
+            } else if (period === '9m') {
+                endDate.setMonth(startDate.getMonth() + 9);
+                label = `${startDateStr} 至 ${endDate.toISOString().split('T')[0]} (9 個月)`;
+            } else if (period === '1y') {
+                endDate.setFullYear(startDate.getFullYear() + 1);
+                label = `${startDateStr} 至 ${endDate.toISOString().split('T')[0]} (1 年)`;
             }
 
             const endDateStr = endDate.toISOString().split('T')[0];
