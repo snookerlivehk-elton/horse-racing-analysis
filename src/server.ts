@@ -726,6 +726,31 @@ app.get('/api/analysis/hit-rates', async (req, res) => {
     }
 });
 
+// New Daily Analysis Route
+app.get('/analysis/daily', (req, res) => {
+    res.render('analysis_daily');
+});
+
+app.get('/api/analysis/daily-stats', async (req, res) => {
+    try {
+        const { startDate, endDate, type, trendKey } = req.query;
+        if (!startDate || !endDate || !type) {
+            return res.status(400).json({ error: 'Missing required parameters' });
+        }
+
+        const stats = await analysisService.getDailyStats(
+            startDate as string,
+            endDate as string,
+            type as 'pundit' | 'trend',
+            trendKey as string
+        );
+        res.json(stats);
+    } catch (error: any) {
+        console.error('Error fetching daily stats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });

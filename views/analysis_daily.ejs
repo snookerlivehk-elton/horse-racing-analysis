@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>每日命中率趨勢分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-gold: #fbbf24;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --border-color: #404040;
+        }
+
+        body { 
+            font-family: 'Roboto', 'Segoe UI', Tahoma, sans-serif; 
+            padding: 20px; 
+            background-color: var(--bg-dark); 
+            color: var(--text-main);
+            margin: 0;
+        }
+        
+        h1 { color: var(--accent-gold); text-align: center; margin-bottom: 20px; }
+        
+        .nav-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .nav-link:hover { text-decoration: underline; }
+
+        .control-panel {
+            background: var(--bg-panel);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 0 auto 30px;
+            max-width: 1000px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            border: 1px solid var(--border-color);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        select, input[type="date"] {
+            background: #404040;
+            border: 1px solid #555;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+
+        button {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background: #2563eb; }
+
+        .chart-container {
+            background: var(--bg-panel);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 0 auto 30px;
+            max-width: 1200px;
+            height: 400px;
+            border: 1px solid var(--border-color);
+        }
+
+        .table-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        th, td {
+            padding: 12px 10px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.95em;
+        }
+
+        th {
+            background: #333;
+            color: var(--accent-gold);
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #383838; }
+
+        .metric-cell {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .roi-positive { color: var(--accent-green); font-weight: bold; }
+        .roi-negative { color: var(--accent-red); font-weight: bold; }
+        .sub-text { font-size: 0.8em; color: var(--text-muted); }
+        
+        .metric-selector {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .metric-btn {
+            background: #444;
+            color: #ccc;
+            margin: 0 5px;
+            padding: 5px 15px;
+            font-size: 0.9em;
+        }
+        .metric-btn.active {
+            background: var(--accent-gold);
+            color: #000;
+        }
+
+    </style>
+</head>
+<body>
+    <a href="/" class="nav-link">← 返回首頁</a>
+
+    <h1>📈 每日命中率趨勢分析</h1>
+
+    <div class="control-panel">
+        <div class="control-group">
+            <label>日期範圍:</label>
+            <input type="date" id="startDate" value="2025-01-01">
+            <span>至</span>
+            <input type="date" id="endDate" value="2026-02-01">
+        </div>
+        
+        <div class="control-group">
+            <label>分析項目:</label>
+            <select id="analysisType">
+                <option value="pundit">👤 名家推介 (J18 Likes)</option>
+                <option value="trend-30">📉 綜合走勢 T-30</option>
+                <option value="trend-25">📉 綜合走勢 T-25</option>
+                <option value="trend-20">📉 綜合走勢 T-20</option>
+                <option value="trend-15">📉 綜合走勢 T-15</option>
+                <option value="trend-10">📉 綜合走勢 T-10</option>
+                <option value="trend-5">📉 綜合走勢 T-5</option>
+                <option value="trend-0">📉 綜合走勢 T-0</option>
+            </select>
+        </div>
+
+        <button onclick="fetchData()">分析數據</button>
+    </div>
+
+    <div class="chart-container">
+        <div class="metric-selector">
+            圖表顯示: 
+            <button class="metric-btn active" onclick="updateChartMetric('win')">Win (獨贏)</button>
+            <button class="metric-btn" onclick="updateChartMetric('q')">Q (連贏)</button>
+            <button class="metric-btn" onclick="updateChartMetric('t')">T (三重彩)</button>
+            <button class="metric-btn" onclick="updateChartMetric('f4')">F4 (四重彩)</button>
+        </div>
+        <canvas id="trendChart"></canvas>
+    </div>
+
+    <div class="table-container">
+        <h3 style="color: var(--accent-green); margin-bottom: 10px;">📅 每日數據詳情</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2">日期</th>
+                    <th rowspan="2">場數</th>
+                    <th colspan="3">Win (獨贏)</th>
+                    <th colspan="3">Q (連贏)</th>
+                    <th colspan="3">T (三重彩)</th>
+                    <th colspan="3">F4 (四重彩)</th>
+                </tr>
+                <tr>
+                    <th>命中%</th>
+                    <th>彩金</th>
+                    <th>回報率</th>
+                    <th>命中%</th>
+                    <th>彩金</th>
+                    <th>回報率</th>
+                    <th>命中%</th>
+                    <th>彩金</th>
+                    <th>回報率</th>
+                    <th>命中%</th>
+                    <th>彩金</th>
+                    <th>回報率</th>
+                </tr>
+            </thead>
+            <tbody id="dataTable">
+                <!-- Data populated by JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let currentData = [];
+        let chartInstance = null;
+        let currentMetric = 'win';
+
+        // Set default date range (Last 30 days)
+        const today = new Date();
+        document.getElementById('endDate').valueAsDate = today;
+        const lastMonth = new Date();
+        lastMonth.setDate(today.getDate() - 90); // Default 3 months
+        document.getElementById('startDate').valueAsDate = lastMonth;
+
+        async function fetchData() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const typeVal = document.getElementById('analysisType').value;
+            
+            let type = 'pundit';
+            let trendKey = '';
+            
+            if (typeVal.startsWith('trend-')) {
+                type = 'trend';
+                trendKey = typeVal.split('-')[1];
+            }
+
+            try {
+                const res = await fetch(`/api/analysis/daily-stats?startDate=${startDate}&endDate=${endDate}&type=${type}&trendKey=${trendKey}`);
+                const data = await res.json();
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+
+                currentData = data; // Sorted by date desc
+                renderTable(data);
+                renderChart(data);
+
+            } catch (e) {
+                alert('Fetch failed: ' + e.message);
+            }
+        }
+
+        function formatCurrency(val) {
+            return '$' + Math.floor(val).toLocaleString();
+        }
+
+        function formatRoi(val) {
+            const color = val >= 0 ? '#10b981' : '#ef4444';
+            const sign = val >= 0 ? '+' : '';
+            return `<span style="color:${color}">${sign}${val}%</span>`;
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('dataTable');
+            tbody.innerHTML = '';
+
+            data.forEach(d => {
+                const row = `
+                    <tr>
+                        <td style="font-weight:bold; color:white;">${d.date}</td>
+                        <td>${d.raceCount}</td>
+                        
+                        <!-- Win -->
+                        <td>${d.win.rate}%</td>
+                        <td>${formatCurrency(d.win.revenue)}</td>
+                        <td>${formatRoi(d.win.roi)}</td>
+
+                        <!-- Q -->
+                        <td>${d.q.rate}%</td>
+                        <td>${formatCurrency(d.q.revenue)}</td>
+                        <td>${formatRoi(d.q.roi)}</td>
+
+                        <!-- T -->
+                        <td>${d.t.rate}%</td>
+                        <td>${formatCurrency(d.t.revenue)}</td>
+                        <td>${formatRoi(d.t.roi)}</td>
+
+                        <!-- F4 -->
+                        <td>${d.f4.rate}%</td>
+                        <td>${formatCurrency(d.f4.revenue)}</td>
+                        <td>${formatRoi(d.f4.roi)}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        function updateChartMetric(metric) {
+            currentMetric = metric;
+            
+            // Update button styles
+            document.querySelectorAll('.metric-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            if (currentData.length > 0) renderChart(currentData);
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            
+            // Sort data ascending for chart (Time flows left to right)
+            const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            const labels = sortedData.map(d => d.date.substring(5)); // MM-DD
+            const values = sortedData.map(d => d[currentMetric].rate);
+
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${currentMetric.toUpperCase()} 命中率 (%)`,
+                        data: values,
+                        borderColor: '#fbbf24',
+                        backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3, // Smooth curve
+                        fill: true,
+                        pointBackgroundColor: '#10b981'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: '#404040' },
+                            ticks: { color: '#a0a0a0' }
+                        },
+                        x: {
+                            grid: { color: '#404040' },
+                            ticks: { color: '#a0a0a0' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#e0e0e0' } },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const idx = context.dataIndex;
+                                    const day = sortedData[idx];
+                                    const metric = day[currentMetric];
+                                    return [
+                                        `命中率: ${metric.rate}%`,
+                                        `命中: ${metric.hits}/${day.raceCount}場`,
+                                        `彩金: ${formatCurrency(metric.revenue)}`,
+                                        `ROI: ${metric.roi}%`
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initial fetch
+        fetchData();
+
+    </script>
+</body>
+</html>

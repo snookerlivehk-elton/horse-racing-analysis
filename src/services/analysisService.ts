@@ -395,4 +395,174 @@ export class AnalysisService {
 
         return stats;
     }
+
+    // 4. Daily Hit Rate Statistics (For Charts & Tables)
+    async getDailyStats(startDate: string, endDate: string, type: 'pundit' | 'trend', trendKey?: string) {
+        const whereClause: any = {
+            date: { gte: startDate, lte: endDate },
+            j18Payouts: { some: {} }
+        };
+
+        const races = await prisma.race.findMany({
+            where: whereClause,
+            include: {
+                j18Likes: true,
+                j18Trends: true,
+                j18Payouts: true
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        // Map: Date -> StatMetrics
+        const dailyMap = new Map<string, {
+            date: string;
+            count: number;
+            win: { hit: number, revenue: number, cost: number };
+            q: { hit: number, revenue: number, cost: number };
+            t: { hit: number, revenue: number, cost: number };
+            f4: { hit: number, revenue: number, cost: number };
+        }>();
+
+        // Standard Betting Assumptions
+        const COSTS = {
+            WIN: 20, Q: 30, T: 240, F4: 3600
+        };
+
+        for (const race of races) {
+            if (!race.j18Payouts[0]) continue;
+            
+            // Initialize Date Entry
+            const dateStr = race.date; // YYYY/MM/DD
+            if (!dailyMap.has(dateStr)) {
+                dailyMap.set(dateStr, {
+                    date: dateStr,
+                    count: 0,
+                    win: { hit: 0, revenue: 0, cost: 0 },
+                    q: { hit: 0, revenue: 0, cost: 0 },
+                    t: { hit: 0, revenue: 0, cost: 0 },
+                    f4: { hit: 0, revenue: 0, cost: 0 }
+                });
+            }
+            const entry = dailyMap.get(dateStr)!;
+
+            // Parse Results
+            const payouts = race.j18Payouts[0].payouts as unknown as J18PayoutItem[];
+            const { winner, placings } = this.parseResults(payouts);
+            if (!winner) continue;
+
+            // Get Dividends
+            const getDividend = (name: string) => {
+                const pool = payouts.find(p => p.name.includes(name));
+                if (pool && pool.list.length > 0) {
+                     const val = pool.list[0].paicai;
+                     if (typeof val === 'string' && val !== '未能勝出') {
+                         return parseFloat(val.replace(/,/g, ''));
+                     }
+                }
+                return 0;
+            };
+
+            const winDiv = getDividend('獨贏');
+            const qDiv = getDividend('連贏');
+            const tDiv = getDividend('三重彩');
+            const f4Div = getDividend('四重彩');
+
+            // Parse Rank Details (Second, Third, Fourth)
+            let second: number | null = null;
+            let third: number | null = null;
+
+            const tPool = payouts.find(p => p.name.includes('三重彩'));
+            if (tPool && tPool.list.length > 0) {
+                 const parts = tPool.list[0].shengchuzuhe.split(/[-+,]/).map(Number);
+                 if (parts.length >= 3) { second = parts[1]; third = parts[2]; }
+            }
+            // Fallback
+            if (!second && placings.length > 0) {
+                const others = placings.filter(h => h !== winner);
+                if (others.length > 0) second = others[0];
+                if (others.length > 1) third = others[1];
+            }
+
+            // Determine Picks
+            let picks: number[] = [];
+            if (type === 'pundit') {
+                if (race.j18Likes[0]) {
+                    picks = race.j18Likes[0].recommendations as unknown as number[];
+                }
+            } else if (type === 'trend' && trendKey) {
+                if (race.j18Trends[0]) {
+                    const trends = race.j18Trends[0].trends as unknown as Record<string, string[]>;
+                    if (trends[trendKey]) {
+                        picks = trends[trendKey].map(Number);
+                    }
+                }
+            }
+
+            if (picks.length === 0) continue;
+
+            // Check Hits
+            const checkHits = (p: number[]) => {
+                const winHit = p.slice(0, 2).includes(winner);
+                const qHit = (second && p.slice(0, 3).includes(winner) && p.slice(0, 3).includes(second)) || false;
+                const tHit = (second && third && 
+                              p.slice(0, 4).includes(winner) && 
+                              p.slice(0, 4).includes(second) && 
+                              p.slice(0, 4).includes(third)) || false;
+                
+                // F4 (Top 6 Box)
+                let f4Hit = false;
+                const f4Pool = payouts.find(pool => pool.name.includes('四重彩') || pool.name.includes('四連環'));
+                if (f4Pool && f4Pool.list.length > 0) {
+                     const parts = f4Pool.list[0].shengchuzuhe.split(/[-+,]/).map(Number);
+                     if (parts.length >= 4) {
+                         const top6 = new Set(p.slice(0, 6));
+                         f4Hit = parts.slice(0, 4).every(h => top6.has(h));
+                     }
+                }
+
+                return { winHit, qHit, tHit, f4Hit };
+            };
+
+            const res = checkHits(picks);
+            
+            // Accumulate
+            entry.count++;
+            
+            entry.win.cost += COSTS.WIN;
+            entry.q.cost += COSTS.Q;
+            entry.t.cost += COSTS.T;
+            entry.f4.cost += COSTS.F4;
+
+            if (res.winHit) { entry.win.hit++; entry.win.revenue += winDiv; }
+            if (res.qHit) { entry.q.hit++; entry.q.revenue += qDiv; }
+            if (res.tHit) { entry.t.hit++; entry.t.revenue += tDiv; }
+            if (res.f4Hit) { entry.f4.hit++; entry.f4.revenue += f4Div; }
+        }
+
+        // Final Transform to Array
+        return Array.from(dailyMap.values()).map(d => {
+            const calc = (metrics: { hit: number, revenue: number, cost: number }) => {
+                const net = metrics.revenue - metrics.cost;
+                const roi = metrics.cost > 0 ? (net / metrics.cost * 100) : 0;
+                const rate = d.count > 0 ? (metrics.hit / d.count * 100) : 0;
+                return {
+                    hits: metrics.hit,
+                    rate: parseFloat(rate.toFixed(1)),
+                    revenue: metrics.revenue,
+                    cost: metrics.cost,
+                    net: net,
+                    roi: parseFloat(roi.toFixed(1))
+                };
+            };
+
+            return {
+                date: d.date,
+                raceCount: d.count,
+                win: calc(d.win),
+                q: calc(d.q),
+                t: calc(d.t),
+                f4: calc(d.f4)
+            };
+        });
+    }
 }
