@@ -148,6 +148,15 @@
             color: #000;
         }
 
+        .section-border {
+            border-left: 3px solid #666 !important;
+        }
+        
+        /* Add alternating background for better readability */
+        .group-alt {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
     </style>
 </head>
 <body>
@@ -198,24 +207,24 @@
                 <tr>
                     <th rowspan="2">日期</th>
                     <th rowspan="2">場數</th>
-                    <th colspan="3">Win (獨贏)</th>
-                    <th colspan="3">Q (連贏)</th>
-                    <th colspan="3">T (三重彩)</th>
-                    <th colspan="3">F4 (四重彩)</th>
+                    <th colspan="3" class="section-border">Win (獨贏)</th>
+                    <th colspan="3" class="section-border group-alt">Q (連贏)</th>
+                    <th colspan="3" class="section-border">T (三重彩)</th>
+                    <th colspan="3" class="section-border group-alt">F4 (四重彩)</th>
                 </tr>
                 <tr>
-                    <th>命中%</th>
+                    <th class="section-border">命中%</th>
                     <th>彩金</th>
                     <th>回報率</th>
-                    <th>命中%</th>
+                    <th class="section-border group-alt">命中%</th>
+                    <th class="group-alt">彩金</th>
+                    <th class="group-alt">回報率</th>
+                    <th class="section-border">命中%</th>
                     <th>彩金</th>
                     <th>回報率</th>
-                    <th>命中%</th>
-                    <th>彩金</th>
-                    <th>回報率</th>
-                    <th>命中%</th>
-                    <th>彩金</th>
-                    <th>回報率</th>
+                    <th class="section-border group-alt">命中%</th>
+                    <th class="group-alt">彩金</th>
+                    <th class="group-alt">回報率</th>
                 </tr>
             </thead>
             <tbody id="dataTable">
@@ -288,24 +297,24 @@
                         <td>${d.raceCount}</td>
                         
                         <!-- Win -->
-                        <td>${d.win.rate}%</td>
+                        <td class="section-border">${d.win.rate}%</td>
                         <td>${formatCurrency(d.win.revenue)}</td>
                         <td>${formatRoi(d.win.roi)}</td>
 
                         <!-- Q -->
-                        <td>${d.q.rate}%</td>
-                        <td>${formatCurrency(d.q.revenue)}</td>
-                        <td>${formatRoi(d.q.roi)}</td>
+                        <td class="section-border group-alt">${d.q.rate}%</td>
+                        <td class="group-alt">${formatCurrency(d.q.revenue)}</td>
+                        <td class="group-alt">${formatRoi(d.q.roi)}</td>
 
                         <!-- T -->
-                        <td>${d.t.rate}%</td>
+                        <td class="section-border">${d.t.rate}%</td>
                         <td>${formatCurrency(d.t.revenue)}</td>
                         <td>${formatRoi(d.t.roi)}</td>
 
                         <!-- F4 -->
-                        <td>${d.f4.rate}%</td>
-                        <td>${formatCurrency(d.f4.revenue)}</td>
-                        <td>${formatRoi(d.f4.roi)}</td>
+                        <td class="section-border group-alt">${d.f4.rate}%</td>
+                        <td class="group-alt">${formatCurrency(d.f4.revenue)}</td>
+                        <td class="group-alt">${formatRoi(d.f4.roi)}</td>
                     </tr>
                 `;
                 tbody.innerHTML += row;
