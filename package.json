@@ -3,7 +3,7 @@
   "version": "1.0.1",
   "description": "This project implements a weighted scoring system for horse racing analysis, based on historical performance data.",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.12.0"
   },
   "main": "dist/server.js",
   "scripts": {
