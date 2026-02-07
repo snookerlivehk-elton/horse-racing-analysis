@@ -157,6 +157,40 @@
             background-color: rgba(255, 255, 255, 0.03);
         }
 
+        /* Sticky Header & Total Row Configuration */
+        th {
+            position: sticky;
+            z-index: 20;
+            height: 45px; /* Fixed height for reliable sticky positioning */
+            box-sizing: border-box;
+        }
+
+        /* First row of header (Date, Count, Win/Q/T/F4 Groups) */
+        thead tr:nth-child(1) th {
+            top: 0;
+        }
+
+        /* Second row of header (Rate, Rev, ROI columns) */
+        thead tr:nth-child(2) th {
+            top: 45px;
+        }
+
+        /* Fix for Date/Race Count which span 2 rows */
+        thead tr:nth-child(1) th[rowspan="2"] {
+            top: 0;
+            height: 90px; /* 45px * 2 */
+            z-index: 21; /* Ensure on top */
+        }
+
+        /* Sticky Total Row (First row of tbody) */
+        .total-row td {
+            position: sticky;
+            top: 90px; /* 45px + 45px */
+            z-index: 15;
+            background: #374151 !important; /* Ensure opacity */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+
     </style>
 </head>
 <body>
@@ -328,7 +362,7 @@
             // Insert Total Row
             if (data.length > 0) {
                 const totalRow = `
-                    <tr style="background: #374151; font-weight: bold; border-bottom: 2px solid #666;">
+                    <tr class="total-row" style="background: #374151; font-weight: bold; border-bottom: 2px solid #666;">
                         <td style="color: var(--accent-gold);">總計 (Total)</td>
                         <td style="color: var(--accent-gold);">${totalRaces}</td>
                         
