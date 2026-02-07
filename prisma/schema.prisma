@@ -47,6 +47,7 @@ model SpeedPro {
   
   energyReq       String? // 所需能量
   assessment      String? // 速勢能量評估
+  statusRating    Int?    // 狀態評級 (-1, 0, 1, 2, 3)
   
   updatedAt       DateTime @updatedAt
 

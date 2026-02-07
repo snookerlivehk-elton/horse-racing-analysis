@@ -550,7 +550,8 @@ app.get('/api/speedpro/data', async (req, res) => {
             horseName: item.horseName,
             draw: item.draw,
             energyReq: item.energyReq,
-            assessment: item.assessment
+            assessment: item.assessment,
+            statusRating: item.statusRating
         }));
 
         res.json({ success: true, data: flattened });

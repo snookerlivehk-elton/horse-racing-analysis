@@ -150,19 +150,62 @@
         <button onclick="fetchData()">查詢</button>
     </div>
 
+    <div class="control-panel" style="margin-top: 10px; padding: 15px; justify-content: flex-start; flex-wrap: wrap;">
+        <span style="font-weight: bold; color: var(--accent-gold); margin-right: 15px;">多重排序:</span>
+        
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <label>1st:</label>
+            <select id="sort1" onchange="applyMultiSort()" style="padding: 5px; border-radius: 4px; background: #404040; color: white; border: 1px solid #555;">
+                <option value="none">-- 無 --</option>
+                <option value="statusRating">馬匹狀態</option>
+                <option value="difference">速勢能量相差值</option>
+                <option value="assessment">速勢能量評估</option>
+                <option value="energyReq">所需能量</option>
+                <option value="raceNo" selected>場次</option>
+                <option value="horseNo">馬號</option>
+                <option value="draw">檔位</option>
+            </select>
+            
+            <label>2nd:</label>
+            <select id="sort2" onchange="applyMultiSort()" style="padding: 5px; border-radius: 4px; background: #404040; color: white; border: 1px solid #555;">
+                <option value="none" selected>-- 無 --</option>
+                <option value="statusRating">馬匹狀態</option>
+                <option value="difference">速勢能量相差值</option>
+                <option value="assessment">速勢能量評估</option>
+                <option value="energyReq">所需能量</option>
+                <option value="raceNo">場次</option>
+                <option value="horseNo">馬號</option>
+                <option value="draw">檔位</option>
+            </select>
+
+            <label>3rd:</label>
+            <select id="sort3" onchange="applyMultiSort()" style="padding: 5px; border-radius: 4px; background: #404040; color: white; border: 1px solid #555;">
+                <option value="none" selected>-- 無 --</option>
+                <option value="statusRating">馬匹狀態</option>
+                <option value="difference">速勢能量相差值</option>
+                <option value="assessment">速勢能量評估</option>
+                <option value="energyReq">所需能量</option>
+                <option value="raceNo">場次</option>
+                <option value="horseNo">馬號</option>
+                <option value="draw">檔位</option>
+            </select>
+        </div>
+    </div>
+
     <div id="loading" class="loading">正在載入數據...</div>
 
     <div id="results" class="stats-container" style="display: none;">
         <table id="dataTable">
             <thead>
                 <tr>
-                    <th onclick="sortTable('raceNo')">場次</th>
-                    <th onclick="sortTable('horseNo')">馬號</th>
+                    <th onclick="updateSort('raceNo')">場次</th>
+                    <th onclick="updateSort('horseNo')">馬號</th>
                     <th>馬名</th>
-                    <th onclick="sortTable('draw')">檔位</th>
-                    <th onclick="sortTable('assessment')">速勢能量評估</th>
-                    <th onclick="sortTable('energyReq')">所需能量</th>
-                    <th onclick="sortTable('difference')">速勢能量相差值</th>
+                    <th onclick="updateSort('draw')">檔位</th>
+                    <th onclick="updateSort('assessment')">速勢能量評估</th>
+                    <th onclick="updateSort('statusRating')">馬匹狀態</th>
+                    <th onclick="updateSort('energyReq')">所需能量</th>
+                    <th onclick="updateSort('difference')">速勢能量相差值</th>
                 </tr>
             </thead>
             <tbody id="tableBody">
@@ -176,8 +219,6 @@
     <script>
         let currentData = [];
         let availableDates = [];
-        let sortCol = 'raceNo';
-        let sortAsc = true;
 
         document.addEventListener('DOMContentLoaded', async () => {
             // Fetch available dates first
@@ -244,7 +285,8 @@
                             ...item,
                             diff: parseFloat(diff),
                             assessVal: assess,
-                            reqVal: req
+                            reqVal: req,
+                            statusVal: item.statusRating || 0
                         };
                     });
                     renderTable();
@@ -263,39 +305,47 @@
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
 
+            const sort1 = document.getElementById('sort1').value;
+            const sort2 = document.getElementById('sort2').value;
+            const sort3 = document.getElementById('sort3').value;
+
             // Sort data
             currentData.sort((a, b) => {
-                let valA = a[sortCol];
-                let valB = b[sortCol];
+                const criteria = [sort1, sort2, sort3];
                 
-                // Handle special columns
-                if (sortCol === 'assessment') valA = a.assessVal;
-                if (sortCol === 'assessment') valB = b.assessVal;
-                if (sortCol === 'energyReq') valA = a.reqVal;
-                if (sortCol === 'energyReq') valB = b.reqVal;
-                if (sortCol === 'difference') valA = a.diff;
-                if (sortCol === 'difference') valB = b.diff;
-
-                if (valA < valB) return sortAsc ? -1 : 1;
-                if (valA > valB) return sortAsc ? 1 : -1;
+                for (let col of criteria) {
+                    if (col === 'none') continue;
+                    
+                    let valA = a[col];
+                    let valB = b[col];
+                    
+                    // Handle special columns
+                    if (col === 'assessment') { valA = a.assessVal; valB = b.assessVal; }
+                    else if (col === 'energyReq') { valA = a.reqVal; valB = b.reqVal; }
+                    else if (col === 'statusRating') { valA = a.statusVal; valB = b.statusVal; }
+                    else if (col === 'difference') { valA = a.diff; valB = b.diff; }
+                    
+                    // Determine direction:
+                    // Descending for numerical metrics (Status, Diff, Assessment, EnergyReq)
+                    // Ascending for IDs (Race, Horse, Draw)
+                    let isDesc = ['statusRating', 'difference', 'assessment', 'energyReq'].includes(col);
+                    
+                    if (valA < valB) return isDesc ? 1 : -1;
+                    if (valA > valB) return isDesc ? -1 : 1;
+                    // If equal, continue to next criterion
+                }
                 return 0;
             });
 
-            // Update header classes
+            // Update header indicators (simple highlight for active sort 1)
             document.querySelectorAll('th').forEach(th => {
                 th.classList.remove('sort-asc', 'sort-desc');
-                if (th.getAttribute('onclick')?.includes(sortCol)) {
-                    th.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+                if (th.getAttribute('onclick')?.includes(`'${sort1}'`)) {
+                    th.classList.add(['statusRating', 'difference', 'assessment', 'energyReq'].includes(sort1) ? 'sort-desc' : 'sort-asc');
                 }
             });
 
             // Render rows
-            let lastRaceNo = -1;
-            
-            // If sorting by raceNo, we can use race dividers. 
-            // If sorting by other metrics (e.g. highest difference across all races), dividers might be confusing but still useful context.
-            // Let's stick to simple rows for now, maybe add race info in the row.
-            
             currentData.forEach(row => {
                 // Formatting difference color
                 let diffClass = 'val-neutral';
@@ -304,6 +354,17 @@
                 
                 const diffDisplay = row.diff > 0 ? `+${row.diff}` : `${row.diff}`;
 
+                // Status Rating Display
+                let statusClass = 'val-neutral';
+                let statusDisplay = '-';
+                if (row.statusRating > 0) {
+                    statusClass = 'val-pos';
+                    statusDisplay = `+${row.statusRating}`;
+                } else if (row.statusRating < 0) {
+                    statusClass = 'val-neg';
+                    statusDisplay = `${row.statusRating}`;
+                }
+
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td>${row.raceNo}</td>
@@ -311,6 +372,7 @@
                     <td style="text-align: left; padding-left: 20px;">${row.horseName}</td>
                     <td>${row.draw || '-'}</td>
                     <td>${row.assessment || '-'}</td>
+                    <td class="${statusClass}">${statusDisplay}</td>
                     <td>${row.energyReq || '-'}</td>
                     <td class="${diffClass}">${diffDisplay}</td>
                 `;
@@ -318,16 +380,17 @@
             });
         }
 
-        function sortTable(col) {
-            if (sortCol === col) {
-                sortAsc = !sortAsc;
-            } else {
-                sortCol = col;
-                sortAsc = false; // Default to descending for numbers usually, but let's stick to ascending first? 
-                // Actually for "Difference", user probably wants to see highest positive first (Desc).
-                if (col === 'difference' || col === 'assessment' || col === 'energyReq') sortAsc = false;
-                else sortAsc = true;
-            }
+        function applyMultiSort() {
+            renderTable();
+        }
+
+        function updateSort(col) {
+            // If clicking same column as Sort 1, toggle direction? 
+            // For now, let's just set Sort 1 to this column and reset others
+            // This maintains simple behavior for clicks
+            document.getElementById('sort1').value = col;
+            document.getElementById('sort2').value = 'none';
+            document.getElementById('sort3').value = 'none';
             renderTable();
         }
     </script>

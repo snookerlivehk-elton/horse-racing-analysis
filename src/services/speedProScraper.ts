@@ -23,6 +23,18 @@ export class SpeedProScraper {
         return 'ST'; // Default
     }
 
+    private parseStatusRating(html: string | null): number | null {
+        if (!html) return 0; // Default to 0 if empty
+        
+        if (html.includes('formGuide_3up')) return 3;
+        if (html.includes('formGuide_2up')) return 2;
+        if (html.includes('formGuide_1up')) return 1;
+        if (html.includes('thumb_down_2')) return -2;
+        if (html.includes('thumb_down')) return -1;
+        
+        return 0;
+    }
+
     async scrapeRace(raceNo: number, browser: any) {
         const url = `${BASE_URL}?raceno=${raceNo}`;
         console.log(`Scraping SpeedPro for Race ${raceNo}: ${url}`);
@@ -104,12 +116,14 @@ export class SpeedProScraper {
                 const horseName = $(cells[1]).text().trim();
                 const drawStr = $(cells[2]).text().trim();
                 const energyReq = $(cells[3]).text().trim();
+                const statusHtml = $(cells[11]).html(); // Status Rating HTML
                 const assessment = $(cells[12]).text().trim(); // Index 12 based on analysis
 
                 if (!horseNoStr || isNaN(parseInt(horseNoStr))) continue;
 
                 const horseNo = parseInt(horseNoStr);
                 const draw = parseInt(drawStr) || null;
+                const statusRating = this.parseStatusRating(statusHtml);
 
                 // Save to DB
                 await prisma.speedPro.upsert({
@@ -123,7 +137,8 @@ export class SpeedProScraper {
                         horseName,
                         draw,
                         energyReq,
-                        assessment
+                        assessment,
+                        statusRating
                     },
                     create: {
                         raceId: race.id,
@@ -131,7 +146,8 @@ export class SpeedProScraper {
                         horseName,
                         draw,
                         energyReq,
-                        assessment
+                        assessment,
+                        statusRating
                     }
                 });
                 rowCount++;
