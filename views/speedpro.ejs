@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>速勢能量 (SpeedPro) 分析</title>
+    <!-- Flatpickr CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-gold: #fbbf24;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --border-color: #404040;
+        }
+
+        body { 
+            font-family: 'Roboto', 'Segoe UI', Tahoma, sans-serif; 
+            padding: 20px; 
+            background-color: var(--bg-dark); 
+            color: var(--text-main);
+            margin: 0;
+        }
+        
+        h1 { color: var(--accent-gold); text-align: center; margin-bottom: 20px; }
+
+        .nav-link {
+            background: var(--accent-blue);
+            color: white;
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+        .nav-link:hover { background: #2563eb; }
+
+        .control-panel {
+            background: var(--bg-panel);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 0 auto 30px;
+            max-width: 800px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .flatpickr-day.has-data {
+            background-color: var(--accent-gold) !important;
+            color: #000 !important;
+            border-color: var(--accent-gold) !important;
+            font-weight: bold;
+        }
+
+        input[type="text"] {
+            background: #404040;
+            border: 1px solid #555;
+            color: white;
+            padding: 10px;
+            border-radius: 4px;
+            width: 200px;
+            text-align: center;
+        }
+
+        button {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background: #2563eb; }
+
+        .stats-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background: #333;
+            color: var(--accent-gold);
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+        }
+        
+        th:hover { background: #444; }
+        
+        th.sort-asc::after { content: " ▲"; color: #888; font-size: 0.8em; }
+        th.sort-desc::after { content: " ▼"; color: #888; font-size: 0.8em; }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #383838; }
+
+        .loading { text-align: center; color: var(--text-muted); padding: 20px; display: none; }
+        
+        .val-pos { color: var(--accent-green); font-weight: bold; }
+        .val-neg { color: var(--accent-red); font-weight: bold; }
+        .val-neutral { color: var(--text-muted); }
+        
+        .race-divider {
+            background-color: #444;
+            color: white;
+            font-weight: bold;
+            text-align: left;
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <div style="position: absolute; top: 20px; right: 20px; display: flex; gap: 10px;">
+        <a href="/" class="nav-link" style="background-color: #666;">🏠 返回首頁</a>
+        <a href="/scrape-data" class="nav-link" style="background-color: #8b5cf6;">🛠️ 管理排位表</a>
+    </div>
+
+    <h1>⚡ 速勢能量 (SpeedPro) 分析</h1>
+
+    <div class="control-panel">
+        <div>
+            <label>選擇賽事日期: </label>
+            <input type="text" id="datePicker" placeholder="請選擇日期...">
+        </div>
+        <button onclick="fetchData()">查詢</button>
+    </div>
+
+    <div id="loading" class="loading">正在載入數據...</div>
+
+    <div id="results" class="stats-container" style="display: none;">
+        <table id="dataTable">
+            <thead>
+                <tr>
+                    <th onclick="sortTable('raceNo')">場次</th>
+                    <th onclick="sortTable('horseNo')">馬號</th>
+                    <th>馬名</th>
+                    <th onclick="sortTable('draw')">檔位</th>
+                    <th onclick="sortTable('assessment')">速勢能量評估</th>
+                    <th onclick="sortTable('energyReq')">所需能量</th>
+                    <th onclick="sortTable('difference')">速勢能量相差值</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+                <!-- JS will populate -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        let currentData = [];
+        let availableDates = [];
+        let sortCol = 'raceNo';
+        let sortAsc = true;
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Fetch available dates first
+            try {
+                const response = await fetch('/api/speedpro/dates');
+                const data = await response.json();
+                if (data.success) {
+                    availableDates = data.dates; // Expecting ['YYYY-MM-DD', ...]
+                    initDatePicker();
+                }
+            } catch (e) {
+                console.error("Failed to fetch dates", e);
+                initDatePicker(); // Init anyway
+            }
+        });
+
+        function initDatePicker() {
+            flatpickr("#datePicker", {
+                dateFormat: "Y-m-d",
+                onDayCreate: function(dObj, dStr, fp, dayElem) {
+                    // Normalize date string to match availableDates format (YYYY-MM-DD)
+                    // dayElem.dateObj is the date object
+                    const dateStr = formatDate(dayElem.dateObj);
+                    if (availableDates.includes(dateStr)) {
+                        dayElem.className += " has-data";
+                        dayElem.title = "有數據";
+                    }
+                },
+                defaultDate: availableDates.length > 0 ? availableDates[0] : null // Default to latest date if available
+            });
+            
+            // If we have a default date, auto-load
+            if (availableDates.length > 0) {
+                fetchData();
+            }
+        }
+
+        function formatDate(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        async function fetchData() {
+            const dateStr = document.getElementById('datePicker').value;
+            if (!dateStr) return;
+
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+
+            try {
+                const response = await fetch(`/api/speedpro/data?date=${dateStr}`);
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentData = result.data.map(item => {
+                        // Calculate difference
+                        const assess = parseFloat(item.assessment) || 0;
+                        const req = parseFloat(item.energyReq) || 0;
+                        const diff = (assess - req).toFixed(2);
+                        
+                        return {
+                            ...item,
+                            diff: parseFloat(diff),
+                            assessVal: assess,
+                            reqVal: req
+                        };
+                    });
+                    renderTable();
+                    document.getElementById('results').style.display = 'block';
+                } else {
+                    alert('沒有找到數據: ' + result.message);
+                }
+            } catch (error) {
+                alert('載入失敗: ' + error.message);
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            // Sort data
+            currentData.sort((a, b) => {
+                let valA = a[sortCol];
+                let valB = b[sortCol];
+                
+                // Handle special columns
+                if (sortCol === 'assessment') valA = a.assessVal;
+                if (sortCol === 'assessment') valB = b.assessVal;
+                if (sortCol === 'energyReq') valA = a.reqVal;
+                if (sortCol === 'energyReq') valB = b.reqVal;
+                if (sortCol === 'difference') valA = a.diff;
+                if (sortCol === 'difference') valB = b.diff;
+
+                if (valA < valB) return sortAsc ? -1 : 1;
+                if (valA > valB) return sortAsc ? 1 : -1;
+                return 0;
+            });
+
+            // Update header classes
+            document.querySelectorAll('th').forEach(th => {
+                th.classList.remove('sort-asc', 'sort-desc');
+                if (th.getAttribute('onclick')?.includes(sortCol)) {
+                    th.classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
+                }
+            });
+
+            // Render rows
+            let lastRaceNo = -1;
+            
+            // If sorting by raceNo, we can use race dividers. 
+            // If sorting by other metrics (e.g. highest difference across all races), dividers might be confusing but still useful context.
+            // Let's stick to simple rows for now, maybe add race info in the row.
+            
+            currentData.forEach(row => {
+                // Formatting difference color
+                let diffClass = 'val-neutral';
+                if (row.diff > 0) diffClass = 'val-pos';
+                else if (row.diff < 0) diffClass = 'val-neg';
+                
+                const diffDisplay = row.diff > 0 ? `+${row.diff}` : `${row.diff}`;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.raceNo}</td>
+                    <td>${row.horseNo}</td>
+                    <td style="text-align: left; padding-left: 20px;">${row.horseName}</td>
+                    <td>${row.draw || '-'}</td>
+                    <td>${row.assessment || '-'}</td>
+                    <td>${row.energyReq || '-'}</td>
+                    <td class="${diffClass}">${diffDisplay}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function sortTable(col) {
+            if (sortCol === col) {
+                sortAsc = !sortAsc;
+            } else {
+                sortCol = col;
+                sortAsc = false; // Default to descending for numbers usually, but let's stick to ascending first? 
+                // Actually for "Difference", user probably wants to see highest positive first (Desc).
+                if (col === 'difference' || col === 'assessment' || col === 'energyReq') sortAsc = false;
+                else sortAsc = true;
+            }
+            renderTable();
+        }
+    </script>
+</body>
+</html>

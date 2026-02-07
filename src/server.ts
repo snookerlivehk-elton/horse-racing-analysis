@@ -479,6 +479,87 @@ app.post('/api/scrape/speedpro', async (req, res) => {
     }
 });
 
+// --- SpeedPro Analysis Routes ---
+
+app.get('/speedpro', (req, res) => {
+    res.render('speedpro', { serverVersion: VERSION });
+});
+
+// Get available dates for SpeedPro
+app.get('/api/speedpro/dates', async (req, res) => {
+    try {
+        // Find races that have SpeedPro data
+        const races = await prisma.race.findMany({
+            where: {
+                speedPros: {
+                    some: {} // At least one SpeedPro record exists
+                }
+            },
+            select: {
+                date: true
+            },
+            distinct: ['date'],
+            orderBy: {
+                date: 'desc'
+            }
+        });
+        
+        const dates = races.map(r => r.date);
+        res.json({ success: true, dates });
+    } catch (error: any) {
+        console.error('Error fetching SpeedPro dates:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get SpeedPro data for a specific date
+app.get('/api/speedpro/data', async (req, res) => {
+    try {
+        const { date } = req.query;
+        if (!date || typeof date !== 'string') {
+            return res.status(400).json({ success: false, message: 'Date parameter is required' });
+        }
+
+        const data = await prisma.speedPro.findMany({
+            where: {
+                race: {
+                    date: date
+                }
+            },
+            include: {
+                race: {
+                    select: {
+                        raceNo: true,
+                        venue: true
+                    }
+                }
+            },
+            orderBy: [
+                { race: { raceNo: 'asc' } },
+                { horseNo: 'asc' }
+            ]
+        });
+
+        // Flatten the structure for easier frontend consumption
+        const flattened = data.map(item => ({
+            id: item.id,
+            raceId: item.raceId,
+            raceNo: item.race.raceNo,
+            venue: item.race.venue,
+            horseNo: item.horseNo,
+            horseName: item.horseName,
+            draw: item.draw,
+            energyReq: item.energyReq,
+            assessment: item.assessment
+        }));
+
+        res.json({ success: true, data: flattened });
+    } catch (error: any) {
+        console.error('Error fetching SpeedPro data:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // J18 Scraping Endpoints
 app.post('/api/scrape/j18/trend', async (req, res) => {
     try {
