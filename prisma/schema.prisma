@@ -29,6 +29,7 @@ model Race {
   j18Likes    J18Like[]
   j18Payouts  J18Payout[]
   speedPros   SpeedPro[]
+  strategyPicks StrategyPick[]
   
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
@@ -291,4 +292,27 @@ model JockeyTrainerStats {
   updatedAt   DateTime @updatedAt
 
   @@unique([jockeyId, trainerId, season])
+}
+
+// SpeedPro Lab Strategy Models
+model StrategyTest {
+  id        String   @id @default(uuid())
+  name      String   // e.g., "Strategy A"
+  criteria  String?  // JSON string or text describing the sort criteria used
+  createdAt DateTime @default(now())
+
+  picks     StrategyPick[]
+}
+
+model StrategyPick {
+  id             String       @id @default(uuid())
+  strategyTestId String
+  strategyTest   StrategyTest @relation(fields: [strategyTestId], references: [id])
+  
+  raceId         String
+  race           Race         @relation(fields: [raceId], references: [id])
+  
+  picks          Int[]        // Array of horse numbers (e.g. [1, 5, 2...])
+  
+  @@unique([strategyTestId, raceId])
 }

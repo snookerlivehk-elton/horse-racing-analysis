@@ -14,10 +14,12 @@ import { scrapeAndSaveJ18Trend, scrapeAndSaveJ18Like, scrapeAndSaveJ18Payout } f
 import { calculateOddsDrops, calculateFundFlow, calculatePunditPerf } from './services/statsService';
 import { AnalysisService } from './services/analysisService';
 import { SpeedProScraper } from './services/speedProScraper';
+import { StrategyService } from './services/strategyService';
 
 const app = express();
 const analysisService = new AnalysisService();
 const speedProScraper = new SpeedProScraper();
+const strategyService = new StrategyService();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json()); // Enable JSON body parsing
@@ -558,6 +560,38 @@ app.get('/api/speedpro/data', async (req, res) => {
     } catch (error: any) {
         console.error('Error fetching SpeedPro data:', error);
         res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// --- SpeedPro Lab Routes ---
+
+app.get('/analysis/speedpro-lab', (req, res) => {
+    res.render('speedpro_lab', { serverVersion: VERSION });
+});
+
+app.post('/api/strategies', async (req, res) => {
+    try {
+        const { name, criteria, picks } = req.body;
+        if (!name || !picks || !Array.isArray(picks)) {
+            return res.status(400).json({ success: false, message: 'Invalid input' });
+        }
+        // picks comes as [{ raceId: string, picks: number[] }, ...]
+        const criteriaStr = typeof criteria === 'object' ? JSON.stringify(criteria) : String(criteria);
+        
+        const result = await strategyService.saveStrategy(name, criteriaStr, picks);
+        res.json(result);
+    } catch (error: any) {
+        console.error('Error saving strategy:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.get('/api/strategies', async (req, res) => {
+    try {
+        const strategies = await strategyService.getAllStrategies();
+        res.json({ success: true, data: strategies });
+    } catch (error: any) {
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
