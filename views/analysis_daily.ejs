@@ -237,6 +237,12 @@
         let currentData = [];
         let chartInstance = null;
         let currentMetric = 'win';
+        const BET_COSTS = {
+            win: 20,
+            q: 30,
+            t: 240,
+            f4: 3600
+        };
 
         // Set default date range (Last 30 days)
         const today = new Date();
@@ -289,6 +295,66 @@
         function renderTable(data) {
             const tbody = document.getElementById('dataTable');
             tbody.innerHTML = '';
+
+            // Calculate Totals
+            let totalRaces = 0;
+            const totals = {
+                win: { hits: 0, revenue: 0 },
+                q: { hits: 0, revenue: 0 },
+                t: { hits: 0, revenue: 0 },
+                f4: { hits: 0, revenue: 0 }
+            };
+
+            data.forEach(d => {
+                totalRaces += d.raceCount;
+                ['win', 'q', 't', 'f4'].forEach(type => {
+                    totals[type].hits += d[type].hits;
+                    totals[type].revenue += d[type].revenue;
+                });
+            });
+
+            // Helper to calc total ROI
+            const calcTotalRoi = (type) => {
+                if (totalRaces === 0) return 0;
+                const totalCost = totalRaces * BET_COSTS[type];
+                const net = totals[type].revenue - totalCost;
+                return totalCost > 0 ? (net / totalCost * 100).toFixed(1) : '0.0';
+            };
+
+            const calcTotalRate = (type) => {
+                return totalRaces > 0 ? (totals[type].hits / totalRaces * 100).toFixed(1) : '0.0';
+            };
+
+            // Insert Total Row
+            if (data.length > 0) {
+                const totalRow = `
+                    <tr style="background: #374151; font-weight: bold; border-bottom: 2px solid #666;">
+                        <td style="color: var(--accent-gold);">總計 (Total)</td>
+                        <td style="color: var(--accent-gold);">${totalRaces}</td>
+                        
+                        <!-- Win Total -->
+                        <td class="section-border" style="color: var(--accent-gold);">${calcTotalRate('win')}%</td>
+                        <td style="color: var(--accent-gold);">${formatCurrency(totals.win.revenue)}</td>
+                        <td>${formatRoi(calcTotalRoi('win'))}</td>
+
+                        <!-- Q Total -->
+                        <td class="section-border group-alt" style="color: var(--accent-gold);">${calcTotalRate('q')}%</td>
+                        <td class="group-alt" style="color: var(--accent-gold);">${formatCurrency(totals.q.revenue)}</td>
+                        <td class="group-alt">${formatRoi(calcTotalRoi('q'))}</td>
+
+                        <!-- T Total -->
+                        <td class="section-border" style="color: var(--accent-gold);">${calcTotalRate('t')}%</td>
+                        <td style="color: var(--accent-gold);">${formatCurrency(totals.t.revenue)}</td>
+                        <td>${formatRoi(calcTotalRoi('t'))}</td>
+
+                        <!-- F4 Total -->
+                        <td class="section-border group-alt" style="color: var(--accent-gold);">${calcTotalRate('f4')}%</td>
+                        <td class="group-alt" style="color: var(--accent-gold);">${formatCurrency(totals.f4.revenue)}</td>
+                        <td class="group-alt">${formatRoi(calcTotalRoi('f4'))}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += totalRow;
+            }
 
             data.forEach(d => {
                 const row = `
