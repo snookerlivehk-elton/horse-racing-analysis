@@ -2,6 +2,9 @@
   "name": "horse-racing",
   "version": "1.0.1",
   "description": "This project implements a weighted scoring system for horse racing analysis, based on historical performance data.",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "main": "dist/server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
