@@ -35,7 +35,7 @@ export class AnalysisService {
         const winPool = payouts.find(p => p.name.includes('獨贏'));
         if (winPool && winPool.list.length > 0) {
             winner = parseInt(winPool.list[0].shengchuzuhe);
-            winDividend = parseFloat(winPool.list[0].paicai);
+            winDividend = parseFloat(winPool.list[0].paicai.replace(/,/g, ''));
         }
 
         const placePool = payouts.find(p => p.name.includes('位置'));
@@ -44,6 +44,81 @@ export class AnalysisService {
         }
 
         return { winner, placings, winDividend };
+    }
+
+    // Helper: Calculate Rewards for a single race based on picks
+    private calculateRaceRewards(payouts: J18PayoutItem[], picks: number[]) {
+        const COSTS = { WIN: 20, Q: 30, T: 240, F4: 3600 };
+        const res = {
+            win: { hit: 0, rev: 0, cost: COSTS.WIN },
+            q: { hit: 0, rev: 0, cost: COSTS.Q },
+            t: { hit: 0, rev: 0, cost: COSTS.T },
+            f4: { hit: 0, rev: 0, cost: COSTS.F4 }
+        };
+        
+        // Helper to parse amount
+        const parseAmt = (val: string) => {
+            if (typeof val === 'string' && val !== '未能勝出') {
+                return parseFloat(val.replace(/,/g, ''));
+            }
+            return 0;
+        };
+        
+        // WIN (Top 2 picks)
+        const winPool = payouts.find(p => p.name.includes('獨贏'));
+        if (winPool) {
+            const myPicks = new Set(picks.slice(0, 2));
+            for (const item of winPool.list) {
+                const winner = parseInt(item.shengchuzuhe);
+                if (myPicks.has(winner)) {
+                    res.win.hit = 1;
+                    res.win.rev += parseAmt(item.paicai);
+                }
+            }
+        }
+        
+        // Q (Top 3 Box)
+        const qPool = payouts.find(p => p.name.includes('連贏'));
+        if (qPool) {
+            const myPicks = picks.slice(0, 3);
+            for (const item of qPool.list) {
+                const parts = item.shengchuzuhe.split(/[-+,]/).map(Number);
+                // Q is any 2 horses. Check if both are in myPicks.
+                if (parts.length >= 2 && parts.every(h => myPicks.includes(h))) {
+                    res.q.hit = 1;
+                    res.q.rev += parseAmt(item.paicai);
+                }
+            }
+        }
+        
+        // T (Top 4 Box)
+        const tPool = payouts.find(p => p.name.includes('三重彩')); // Tierce (ordered)
+        if (tPool) {
+            const myPicks = new Set(picks.slice(0, 4));
+            for (const item of tPool.list) {
+                const parts = item.shengchuzuhe.split(/[-+,]/).map(Number);
+                // Box bet covers the combination regardless of order
+                if (parts.length >= 3 && parts.every(h => myPicks.has(h))) {
+                    res.t.hit = 1;
+                    res.t.rev += parseAmt(item.paicai);
+                }
+            }
+        }
+        
+        // F4 (Top 6 Box)
+        const f4Pool = payouts.find(p => p.name.includes('四重彩') || p.name.includes('四連環'));
+        if (f4Pool) {
+            const myPicks = new Set(picks.slice(0, 6));
+            for (const item of f4Pool.list) {
+                const parts = item.shengchuzuhe.split(/[-+,]/).map(Number);
+                if (parts.length >= 4 && parts.every(h => myPicks.has(h))) {
+                    res.f4.hit = 1;
+                    res.f4.rev += parseAmt(item.paicai);
+                }
+            }
+        }
+        
+        return res;
     }
 
     // 1. System Accuracy Statistics (J18 Like vs Result)
@@ -248,96 +323,15 @@ export class AnalysisService {
         };
 
         // Standard Betting Assumptions (Cost per Race)
-        const COSTS = {
-            WIN: 20,    // Top 2 ($10/bet * 2)
-            Q: 30,      // Top 3 Box ($10/bet * 3)
-            T: 240,     // Top 4 Box ($10/bet * 24)
-            F4: 3600    // Top 6 Box ($10/bet * 360)
-        };
+        // const COSTS = { WIN: 20, Q: 30, T: 240, F4: 3600 }; // Now in calculateRaceRewards
 
         for (const race of races) {
             if (!race.j18Payouts[0]) continue;
             
             const payouts = race.j18Payouts[0].payouts as unknown as J18PayoutItem[];
-            const { winner, placings } = this.parseResults(payouts); // placings contains 2nd, 3rd, 4th...
+            const { winner } = this.parseResults(payouts);
             
             if (!winner) continue;
-
-            // Helper to get dividend
-            const getDividend = (name: string) => {
-                const pool = payouts.find(p => p.name.includes(name));
-                if (pool && pool.list.length > 0) {
-                     const val = pool.list[0].paicai;
-                     if (typeof val === 'string' && val !== '未能勝出') {
-                         return parseFloat(val.replace(/,/g, ''));
-                     }
-                }
-                return 0;
-            };
-
-            const winDiv = getDividend('獨贏');
-            const qDiv = getDividend('連贏');
-            const tDiv = getDividend('三重彩');
-            const f4Div = getDividend('四重彩');
-
-            // Re-parsing to get top 4 ranks
-            const top4: number[] = [winner];
-            let second: number | null = null;
-            let third: number | null = null;
-            let fourth: number | null = null;
-
-            // Try to find exact placings from Tierce/First4 pools
-            const tPool = payouts.find(p => p.name.includes('三重彩'));
-            if (tPool && tPool.list.length > 0) {
-                 const parts = tPool.list[0].shengchuzuhe.split(/[-+,]/).map(Number);
-                 if (parts.length >= 3) {
-                     second = parts[1];
-                     third = parts[2];
-                 }
-            }
-
-            const f4Pool = payouts.find(p => p.name.includes('四重彩') || p.name.includes('四連環'));
-            if (f4Pool && f4Pool.list.length > 0) {
-                 const parts = f4Pool.list[0].shengchuzuhe.split(/[-+,]/).map(Number);
-                 if (parts.length >= 4) {
-                     fourth = parts[3];
-                     if (!second) second = parts[1];
-                     if (!third) third = parts[2];
-                 }
-            }
-            
-            // Fallback: Use Placings from Place Pool
-            if (!second && placings.length > 0) {
-                const placesWithoutWinner = placings.filter(h => h !== winner);
-                if (placesWithoutWinner.length > 0) second = placesWithoutWinner[0];
-                if (placesWithoutWinner.length > 1) third = placesWithoutWinner[1];
-            }
-
-            // Check function
-            const checkHits = (picks: number[]) => {
-                const picksSet = new Set(picks);
-                
-                // Win: Top 2 picks contain Winner
-                const winHit = picks.slice(0, 2).includes(winner);
-                
-                // Q: Top 3 picks contain Winner & Second
-                const qHit = (second && picks.slice(0, 3).includes(winner) && picks.slice(0, 3).includes(second)) || false;
-                
-                // T: Top 4 picks contain Win, 2nd, 3rd
-                const tHit = (second && third && 
-                              picks.slice(0, 4).includes(winner) && 
-                              picks.slice(0, 4).includes(second) && 
-                              picks.slice(0, 4).includes(third)) || false;
-                
-                // F4: Top 6 picks contain Win, 2nd, 3rd, 4th
-                const f4Hit = (second && third && fourth && 
-                               picks.slice(0, 6).includes(winner) && 
-                               picks.slice(0, 6).includes(second) && 
-                               picks.slice(0, 6).includes(third) && 
-                               picks.slice(0, 6).includes(fourth)) || false;
-                               
-                return { winHit, qHit, tHit, f4Hit };
-            };
 
             stats.totalRaces++;
 
@@ -345,19 +339,19 @@ export class AnalysisService {
             if (race.j18Likes[0]) {
                 const picks = race.j18Likes[0].recommendations as unknown as number[];
                 if (picks && picks.length > 0) {
-                    const res = checkHits(picks);
+                    const res = this.calculateRaceRewards(payouts, picks);
                     stats.punditStats.count++;
                     
                     // Add Costs
-                    stats.punditStats.winCost += COSTS.WIN;
-                    stats.punditStats.qCost += COSTS.Q;
-                    stats.punditStats.tCost += COSTS.T;
-                    stats.punditStats.f4Cost += COSTS.F4;
+                    stats.punditStats.winCost += res.win.cost;
+                    stats.punditStats.qCost += res.q.cost;
+                    stats.punditStats.tCost += res.t.cost;
+                    stats.punditStats.f4Cost += res.f4.cost;
 
-                    if (res.winHit) { stats.punditStats.winHit++; stats.punditStats.winRevenue += winDiv; }
-                    if (res.qHit) { stats.punditStats.qHit++; stats.punditStats.qRevenue += qDiv; }
-                    if (res.tHit) { stats.punditStats.tHit++; stats.punditStats.tRevenue += tDiv; }
-                    if (res.f4Hit) { stats.punditStats.f4Hit++; stats.punditStats.f4Revenue += f4Div; }
+                    if (res.win.hit) { stats.punditStats.winHit++; stats.punditStats.winRevenue += res.win.rev; }
+                    if (res.q.hit) { stats.punditStats.qHit++; stats.punditStats.qRevenue += res.q.rev; }
+                    if (res.t.hit) { stats.punditStats.tHit++; stats.punditStats.tRevenue += res.t.rev; }
+                    if (res.f4.hit) { stats.punditStats.f4Hit++; stats.punditStats.f4Revenue += res.f4.rev; }
                 }
             }
 
@@ -375,19 +369,19 @@ export class AnalysisService {
                             };
                         }
                         
-                        const res = checkHits(picks);
+                        const res = this.calculateRaceRewards(payouts, picks);
                         stats.trendStats[timeKey].count++;
                         
                         // Add Costs
-                        stats.trendStats[timeKey].winCost += COSTS.WIN;
-                        stats.trendStats[timeKey].qCost += COSTS.Q;
-                        stats.trendStats[timeKey].tCost += COSTS.T;
-                        stats.trendStats[timeKey].f4Cost += COSTS.F4;
+                        stats.trendStats[timeKey].winCost += res.win.cost;
+                        stats.trendStats[timeKey].qCost += res.q.cost;
+                        stats.trendStats[timeKey].tCost += res.t.cost;
+                        stats.trendStats[timeKey].f4Cost += res.f4.cost;
 
-                        if (res.winHit) { stats.trendStats[timeKey].winHit++; stats.trendStats[timeKey].winRevenue += winDiv; }
-                        if (res.qHit) { stats.trendStats[timeKey].qHit++; stats.trendStats[timeKey].qRevenue += qDiv; }
-                        if (res.tHit) { stats.trendStats[timeKey].tHit++; stats.trendStats[timeKey].tRevenue += tDiv; }
-                        if (res.f4Hit) { stats.trendStats[timeKey].f4Hit++; stats.trendStats[timeKey].f4Revenue += f4Div; }
+                        if (res.win.hit) { stats.trendStats[timeKey].winHit++; stats.trendStats[timeKey].winRevenue += res.win.rev; }
+                        if (res.q.hit) { stats.trendStats[timeKey].qHit++; stats.trendStats[timeKey].qRevenue += res.q.rev; }
+                        if (res.t.hit) { stats.trendStats[timeKey].tHit++; stats.trendStats[timeKey].tRevenue += res.t.rev; }
+                        if (res.f4.hit) { stats.trendStats[timeKey].f4Hit++; stats.trendStats[timeKey].f4Revenue += res.f4.rev; }
                     }
                 });
             }
@@ -424,9 +418,7 @@ export class AnalysisService {
         }>();
 
         // Standard Betting Assumptions
-        const COSTS = {
-            WIN: 20, Q: 30, T: 240, F4: 3600
-        };
+        // const COSTS = { WIN: 20, Q: 30, T: 240, F4: 3600 }; // Now in calculateRaceRewards
 
         for (const race of races) {
             if (!race.j18Payouts[0]) continue;
@@ -447,41 +439,8 @@ export class AnalysisService {
 
             // Parse Results
             const payouts = race.j18Payouts[0].payouts as unknown as J18PayoutItem[];
-            const { winner, placings } = this.parseResults(payouts);
+            const { winner } = this.parseResults(payouts);
             if (!winner) continue;
-
-            // Get Dividends
-            const getDividend = (name: string) => {
-                const pool = payouts.find(p => p.name.includes(name));
-                if (pool && pool.list.length > 0) {
-                     const val = pool.list[0].paicai;
-                     if (typeof val === 'string' && val !== '未能勝出') {
-                         return parseFloat(val.replace(/,/g, ''));
-                     }
-                }
-                return 0;
-            };
-
-            const winDiv = getDividend('獨贏');
-            const qDiv = getDividend('連贏');
-            const tDiv = getDividend('三重彩');
-            const f4Div = getDividend('四重彩');
-
-            // Parse Rank Details (Second, Third, Fourth)
-            let second: number | null = null;
-            let third: number | null = null;
-
-            const tPool = payouts.find(p => p.name.includes('三重彩'));
-            if (tPool && tPool.list.length > 0) {
-                 const parts = tPool.list[0].shengchuzuhe.split(/[-+,]/).map(Number);
-                 if (parts.length >= 3) { second = parts[1]; third = parts[2]; }
-            }
-            // Fallback
-            if (!second && placings.length > 0) {
-                const others = placings.filter(h => h !== winner);
-                if (others.length > 0) second = others[0];
-                if (others.length > 1) third = others[1];
-            }
 
             // Determine Picks
             let picks: number[] = [];
@@ -500,43 +459,21 @@ export class AnalysisService {
 
             if (picks.length === 0) continue;
 
-            // Check Hits
-            const checkHits = (p: number[]) => {
-                const winHit = p.slice(0, 2).includes(winner);
-                const qHit = (second && p.slice(0, 3).includes(winner) && p.slice(0, 3).includes(second)) || false;
-                const tHit = (second && third && 
-                              p.slice(0, 4).includes(winner) && 
-                              p.slice(0, 4).includes(second) && 
-                              p.slice(0, 4).includes(third)) || false;
-                
-                // F4 (Top 6 Box)
-                let f4Hit = false;
-                const f4Pool = payouts.find(pool => pool.name.includes('四重彩') || pool.name.includes('四連環'));
-                if (f4Pool && f4Pool.list.length > 0) {
-                     const parts = f4Pool.list[0].shengchuzuhe.split(/[-+,]/).map(Number);
-                     if (parts.length >= 4) {
-                         const top6 = new Set(p.slice(0, 6));
-                         f4Hit = parts.slice(0, 4).every(h => top6.has(h));
-                     }
-                }
-
-                return { winHit, qHit, tHit, f4Hit };
-            };
-
-            const res = checkHits(picks);
+            // Check Hits using Shared Logic
+            const res = this.calculateRaceRewards(payouts, picks);
             
             // Accumulate
             entry.count++;
             
-            entry.win.cost += COSTS.WIN;
-            entry.q.cost += COSTS.Q;
-            entry.t.cost += COSTS.T;
-            entry.f4.cost += COSTS.F4;
+            entry.win.cost += res.win.cost;
+            entry.q.cost += res.q.cost;
+            entry.t.cost += res.t.cost;
+            entry.f4.cost += res.f4.cost;
 
-            if (res.winHit) { entry.win.hit++; entry.win.revenue += winDiv; }
-            if (res.qHit) { entry.q.hit++; entry.q.revenue += qDiv; }
-            if (res.tHit) { entry.t.hit++; entry.t.revenue += tDiv; }
-            if (res.f4Hit) { entry.f4.hit++; entry.f4.revenue += f4Div; }
+            if (res.win.hit) { entry.win.hit++; entry.win.revenue += res.win.rev; }
+            if (res.q.hit) { entry.q.hit++; entry.q.revenue += res.q.rev; }
+            if (res.t.hit) { entry.t.hit++; entry.t.revenue += res.t.rev; }
+            if (res.f4.hit) { entry.f4.hit++; entry.f4.revenue += res.f4.rev; }
         }
 
         // Final Transform to Array
