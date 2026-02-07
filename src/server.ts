@@ -13,9 +13,11 @@ import { scrapeRaceTrackwork } from './services/trackworkScraper';
 import { scrapeAndSaveJ18Trend, scrapeAndSaveJ18Like, scrapeAndSaveJ18Payout } from './services/j18Service';
 import { calculateOddsDrops, calculateFundFlow, calculatePunditPerf } from './services/statsService';
 import { AnalysisService } from './services/analysisService';
+import { SpeedProScraper } from './services/speedProScraper';
 
 const app = express();
 const analysisService = new AnalysisService();
+const speedProScraper = new SpeedProScraper();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json()); // Enable JSON body parsing
@@ -38,7 +40,7 @@ app.use((req, res, next) => {
 
 // Start Scheduler
 startScheduler();
-const VERSION = "1.6.6"; // Bump version to force update & confirm deployment
+const VERSION = "1.6.7"; // Bump version to force update & confirm deployment
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
@@ -456,6 +458,24 @@ app.post('/api/scrape/sectionals', async (req, res) => {
     } catch (e: any) {
         console.error('Sectional Scrape Error:', e);
         res.status(500).json({ error: e.message });
+    }
+});
+
+// SpeedPro Scraping Endpoint
+app.post('/api/scrape/speedpro', async (req, res) => {
+    console.log('Manual trigger: SpeedPro Scraping...');
+    try {
+        // Run in background to avoid timeout
+        speedProScraper.scrapeAll().then(() => {
+            console.log('Manual SpeedPro scraping completed.');
+        }).catch(err => {
+            console.error('Manual SpeedPro scraping failed:', err);
+        });
+        
+        res.json({ success: true, message: "SpeedPro scraping triggered in background. Check server logs for progress." });
+    } catch (error: any) {
+        console.error('Error triggering SpeedPro scraper:', error);
+        res.status(500).json({ success: false, error: error.message });
     }
 });
 

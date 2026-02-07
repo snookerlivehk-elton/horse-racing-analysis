@@ -7,7 +7,10 @@ import { FixtureService, RaceFixture } from './fixtureService';
 import { scrapeAndSaveJ18Like, scrapeAndSaveJ18Trend, scrapeAndSaveJ18Payout } from './j18Service';
 import { processMissingSectionals } from './sectionalScraper';
 
+import { SpeedProScraper } from './speedProScraper';
+
 const fixtureService = new FixtureService();
+const speedProScraper = new SpeedProScraper();
 
 // Cache fixtures to avoid spamming HKJC
 let fixtureCache: { monthKey: string, fixtures: RaceFixture[] } | null = null;
@@ -65,9 +68,22 @@ export function startScheduler() {
     }, {
         timezone: "Asia/Hong_Kong"
     });
+    
+    // 4. Daily SpeedPro Scraping at 15:05 PM (HKT)
+    // Runs daily to catch "day before race" updates (usually released around 15:00)
+    cron.schedule('5 15 * * *', async () => {
+        console.log('[Scheduler] Running Daily SpeedPro Scraping...');
+        try {
+            await speedProScraper.scrapeAll();
+        } catch (e: any) {
+            console.error('[Scheduler] SpeedPro Scraping failed:', e.message);
+        }
+    }, {
+        timezone: "Asia/Hong_Kong"
+    });
     */
     
-    console.log('[Scheduler] Automatic tasks are currently disabled.');
+    console.log('[Scheduler] Automatic tasks are currently disabled (Manual Mode).');
 }
 
 async function getTodayFixture(): Promise<RaceFixture | undefined> {

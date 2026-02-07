@@ -202,11 +202,16 @@
     <% } %>
 
     <div class="btn-bar">
-        <form method="get" action="/scrape-data">
-            <button class="btn btn-primary" type="submit">🔄 重新爬取最新排位</button>
-        </form>
+        <button class="btn btn-primary" onclick="triggerScrape()">🔄 立即更新排位表 (Scrape Now)</button>
+        <button class="btn btn-secondary" onclick="triggerSectionalScrape()">⏱️ 補回分段時間 (Sectionals)</button>
+        <button class="btn btn-secondary" style="background-color: #8b5cf6;" onclick="triggerSpeedProScrape()">⚡ 爬取速勢能量 (SpeedPro)</button>
         <button class="btn btn-secondary" type="button" onclick="downloadExcel()">📥 一鍵生成 Excel</button>
         <a href="/" class="btn-link">🏠 返回首頁</a>
+    </div>
+
+    <div id="loading" class="loading" style="display: none;">
+        <div class="spinner"></div>
+        <p>正在從 HKJC 獲取最新資料，請稍候...<br>(Fetching data from HKJC...)</p>
     </div>
 
     <% if (scrapeResult && scrapeResult.races && scrapeResult.races.length > 0) { %>
@@ -618,6 +623,44 @@
                 row.style.display = 'none';
             } else {
                 row.style.display = 'table-row';
+            }
+        }
+
+        function triggerSpeedProScrape() {
+            if (!confirm('確定要開始爬取速勢能量 (SpeedPro) 數據嗎？這可能需要幾分鐘時間。')) return;
+            
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+            loading.querySelector('p').innerHTML = '正在爬取速勢能量數據 (SpeedPro)...<br>這可能需要 1-2 分鐘，請勿關閉視窗。<br>(Scraping SpeedPro data...)';
+            
+            fetch('/api/scrape/speedpro', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    loading.style.display = 'none';
+                    if (data.success) {
+                        alert('✅ ' + data.message);
+                    } else {
+                        alert('❌ 失敗: ' + data.error);
+                    }
+                })
+                .catch(err => {
+                    loading.style.display = 'none';
+                    alert('❌ 請求失敗: ' + err.message);
+                });
+        }
+        
+        // Define missing functions if they don't exist (Backward Compatibility)
+        if (typeof triggerScrape === 'undefined') {
+            window.triggerScrape = function() {
+                alert('功能暫未實作 (Function not implemented)');
+            }
+        }
+        if (typeof triggerSectionalScrape === 'undefined') {
+            window.triggerSectionalScrape = function() {
+                fetch('/api/scrape/sectionals', { method: 'POST' })
+                    .then(res => res.json())
+                    .then(data => alert(data.message))
+                    .catch(e => alert(e.message));
             }
         }
     </script>
