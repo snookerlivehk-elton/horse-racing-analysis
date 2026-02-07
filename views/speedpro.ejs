@@ -87,6 +87,18 @@
             margin: 0 auto;
         }
 
+        .race-section {
+            margin-bottom: 40px;
+        }
+
+        .race-title {
+            color: var(--accent-gold);
+            border-bottom: 2px solid var(--accent-gold);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -123,14 +135,6 @@
         .val-pos { color: var(--accent-green); font-weight: bold; }
         .val-neg { color: var(--accent-red); font-weight: bold; }
         .val-neutral { color: var(--text-muted); }
-        
-        .race-divider {
-            background-color: #444;
-            color: white;
-            font-weight: bold;
-            text-align: left;
-            padding-left: 20px;
-        }
     </style>
 </head>
 <body>
@@ -161,8 +165,7 @@
                 <option value="difference">速勢能量相差值</option>
                 <option value="assessment">速勢能量評估</option>
                 <option value="energyReq">所需能量</option>
-                <option value="raceNo" selected>場次</option>
-                <option value="horseNo">馬號</option>
+                <option value="horseNo" selected>馬號</option>
                 <option value="draw">檔位</option>
             </select>
             
@@ -173,7 +176,6 @@
                 <option value="difference">速勢能量相差值</option>
                 <option value="assessment">速勢能量評估</option>
                 <option value="energyReq">所需能量</option>
-                <option value="raceNo">場次</option>
                 <option value="horseNo">馬號</option>
                 <option value="draw">檔位</option>
             </select>
@@ -185,7 +187,6 @@
                 <option value="difference">速勢能量相差值</option>
                 <option value="assessment">速勢能量評估</option>
                 <option value="energyReq">所需能量</option>
-                <option value="raceNo">場次</option>
                 <option value="horseNo">馬號</option>
                 <option value="draw">檔位</option>
             </select>
@@ -195,23 +196,7 @@
     <div id="loading" class="loading">正在載入數據...</div>
 
     <div id="results" class="stats-container" style="display: none;">
-        <table id="dataTable">
-            <thead>
-                <tr>
-                    <th onclick="updateSort('raceNo')">場次</th>
-                    <th onclick="updateSort('horseNo')">馬號</th>
-                    <th>馬名</th>
-                    <th onclick="updateSort('draw')">檔位</th>
-                    <th onclick="updateSort('assessment')">速勢能量評估</th>
-                    <th onclick="updateSort('statusRating')">馬匹狀態</th>
-                    <th onclick="updateSort('energyReq')">所需能量</th>
-                    <th onclick="updateSort('difference')">速勢能量相差值</th>
-                </tr>
-            </thead>
-            <tbody id="tableBody">
-                <!-- JS will populate -->
-            </tbody>
-        </table>
+        <!-- Race tables will be populated here -->
     </div>
 
     <!-- Flatpickr JS -->
@@ -302,81 +287,127 @@
         }
 
         function renderTable() {
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = '';
+            const container = document.getElementById('results');
+            container.innerHTML = '';
 
             const sort1 = document.getElementById('sort1').value;
             const sort2 = document.getElementById('sort2').value;
             const sort3 = document.getElementById('sort3').value;
 
-            // Sort data
-            currentData.sort((a, b) => {
-                const criteria = [sort1, sort2, sort3];
-                
-                for (let col of criteria) {
-                    if (col === 'none') continue;
-                    
-                    let valA = a[col];
-                    let valB = b[col];
-                    
-                    // Handle special columns
-                    if (col === 'assessment') { valA = a.assessVal; valB = b.assessVal; }
-                    else if (col === 'energyReq') { valA = a.reqVal; valB = b.reqVal; }
-                    else if (col === 'statusRating') { valA = a.statusVal; valB = b.statusVal; }
-                    else if (col === 'difference') { valA = a.diff; valB = b.diff; }
-                    
-                    // Determine direction:
-                    // Descending for numerical metrics (Status, Diff, Assessment, EnergyReq)
-                    // Ascending for IDs (Race, Horse, Draw)
-                    let isDesc = ['statusRating', 'difference', 'assessment', 'energyReq'].includes(col);
-                    
-                    if (valA < valB) return isDesc ? 1 : -1;
-                    if (valA > valB) return isDesc ? -1 : 1;
-                    // If equal, continue to next criterion
-                }
-                return 0;
-            });
-
-            // Update header indicators (simple highlight for active sort 1)
-            document.querySelectorAll('th').forEach(th => {
-                th.classList.remove('sort-asc', 'sort-desc');
-                if (th.getAttribute('onclick')?.includes(`'${sort1}'`)) {
-                    th.classList.add(['statusRating', 'difference', 'assessment', 'energyReq'].includes(sort1) ? 'sort-desc' : 'sort-asc');
-                }
-            });
-
-            // Render rows
+            // Group by Race
+            const races = {};
             currentData.forEach(row => {
-                // Formatting difference color
-                let diffClass = 'val-neutral';
-                if (row.diff > 0) diffClass = 'val-pos';
-                else if (row.diff < 0) diffClass = 'val-neg';
+                if (!races[row.raceNo]) races[row.raceNo] = [];
+                races[row.raceNo].push(row);
+            });
+
+            const raceNos = Object.keys(races).map(Number).sort((a, b) => a - b);
+
+            if (raceNos.length === 0) {
+                container.innerHTML = '<div style="text-align:center; padding:20px;">暫無數據</div>';
+                return;
+            }
+
+            raceNos.forEach(raceNo => {
+                const raceData = races[raceNo];
+
+                // Sort race data
+                raceData.sort((a, b) => {
+                    const criteria = [sort1, sort2, sort3];
+                    
+                    for (let col of criteria) {
+                        if (col === 'none') continue;
+                        
+                        let valA = a[col];
+                        let valB = b[col];
+                        
+                        // Handle special columns
+                        if (col === 'assessment') { valA = a.assessVal; valB = b.assessVal; }
+                        else if (col === 'energyReq') { valA = a.reqVal; valB = b.reqVal; }
+                        else if (col === 'statusRating') { valA = a.statusVal; valB = b.statusVal; }
+                        else if (col === 'difference') { valA = a.diff; valB = b.diff; }
+                        
+                        // Determine direction:
+                        // Descending for numerical metrics (Status, Diff, Assessment, EnergyReq)
+                        // Ascending for IDs (Horse, Draw)
+                        let isDesc = ['statusRating', 'difference', 'assessment', 'energyReq'].includes(col);
+                        
+                        if (valA < valB) return isDesc ? 1 : -1;
+                        if (valA > valB) return isDesc ? -1 : 1;
+                        // If equal, continue to next criterion
+                    }
+                    return 0;
+                });
+
+                // Create Section
+                const section = document.createElement('div');
+                section.className = 'race-section';
                 
-                const diffDisplay = row.diff > 0 ? `+${row.diff}` : `${row.diff}`;
+                const title = document.createElement('div');
+                title.className = 'race-title';
+                title.textContent = `第 ${raceNo} 場`;
+                section.appendChild(title);
 
-                // Status Rating Display
-                let statusClass = 'val-neutral';
-                let statusDisplay = '-';
-                if (row.statusRating > 0) {
-                    statusClass = 'val-pos';
-                    statusDisplay = `+${row.statusRating}`;
-                } else if (row.statusRating < 0) {
-                    statusClass = 'val-neg';
-                    statusDisplay = `${row.statusRating}`;
-                }
-
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${row.raceNo}</td>
-                    <td>${row.horseNo}</td>
-                    <td style="text-align: left; padding-left: 20px;">${row.horseName}</td>
-                    <td>${row.draw || '-'}</td>
-                    <td>${row.assessment || '-'}</td>
-                    <td class="${statusClass}">${statusDisplay}</td>
-                    <td>${row.energyReq || '-'}</td>
-                    <td class="${diffClass}">${diffDisplay}</td>
+                const table = document.createElement('table');
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th onclick="updateSort('horseNo')">馬號</th>
+                            <th>馬名</th>
+                            <th onclick="updateSort('draw')">檔位</th>
+                            <th onclick="updateSort('assessment')">速勢能量評估</th>
+                            <th onclick="updateSort('statusRating')">馬匹狀態</th>
+                            <th onclick="updateSort('energyReq')">所需能量</th>
+                            <th onclick="updateSort('difference')">速勢能量相差值</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
                 `;
-                tbody.appendChild(tr);
+                
+                const tbody = table.querySelector('tbody');
+                
+                // Update header indicators
+                table.querySelectorAll('th').forEach(th => {
+                    th.classList.remove('sort-asc', 'sort-desc');
+                    if (th.getAttribute('onclick')?.includes(`'${sort1}'`)) {
+                        th.classList.add(['statusRating', 'difference', 'assessment', 'energyReq'].includes(sort1) ? 'sort-desc' : 'sort-asc');
+                    }
+                });
+
+                raceData.forEach(row => {
+                    // Formatting difference color
+                    let diffClass = 'val-neutral';
+                    if (row.diff > 0) diffClass = 'val-pos';
+                    else if (row.diff < 0) diffClass = 'val-neg';
+                    
+                    const diffDisplay = row.diff > 0 ? `+${row.diff}` : `${row.diff}`;
+
+                    // Status Rating Display
+                    let statusClass = 'val-neutral';
+                    let statusDisplay = '-';
+                    if (row.statusRating > 0) {
+                        statusClass = 'val-pos';
+                        statusDisplay = `+${row.statusRating}`;
+                    } else if (row.statusRating < 0) {
+                        statusClass = 'val-neg';
+                        statusDisplay = `${row.statusRating}`;
+                    }
+
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${row.horseNo}</td>
+                        <td style="text-align: left; padding-left: 20px;">${row.horseName}</td>
+                        <td>${row.draw || '-'}</td>
+                        <td>${row.assessment || '-'}</td>
+                        <td class="${statusClass}">${statusDisplay}</td>
+                        <td>${row.energyReq || '-'}</td>
+                        <td class="${diffClass}">${diffDisplay}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                section.appendChild(table);
+                container.appendChild(section);
             });
         }
 
