@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Analysis Pundit 命中率分析</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-gold: #fbbf24;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --border-color: #404040;
+        }
+
+        body { 
+            font-family: 'Roboto', sans-serif; 
+            padding: 20px; 
+            background-color: var(--bg-dark); 
+            color: var(--text-main);
+            margin: 0;
+        }
+        
+        h1 { color: var(--accent-gold); text-align: center; margin-bottom: 30px; }
+
+        .nav-bar {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .nav-btn {
+            background-color: #4b5563;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: opacity 0.2s;
+        }
+
+        .nav-btn:hover { opacity: 0.8; }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .stat-card {
+            background: var(--bg-panel);
+            padding: 25px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover { transform: translateY(-5px); }
+
+        .stat-title {
+            font-size: 1.2em;
+            color: var(--accent-gold);
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .stat-value {
+            font-size: 3em;
+            font-weight: bold;
+            margin: 10px 0;
+            color: var(--text-main);
+        }
+
+        .stat-sub {
+            font-size: 0.9em;
+            color: var(--text-muted);
+            margin-top: 10px;
+        }
+
+        .stat-desc {
+            font-size: 0.8em;
+            color: var(--text-muted);
+            margin-top: 15px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 10px;
+        }
+
+        .loading { text-align: center; font-size: 1.2em; color: var(--text-muted); margin-top: 50px; }
+    </style>
+</head>
+<body>
+    <div class="nav-bar">
+        <a href="/" class="nav-btn">🏠 返回首頁</a>
+        <a href="/analysis/hit-rates" class="nav-btn" style="background-color: var(--accent-gold); color: black;">🎯 命中率分析</a>
+    </div>
+
+    <h1>Analysis Pundit 命中率分析</h1>
+
+    <div id="loading" class="loading">載入數據中...</div>
+
+    <div id="dashboard" class="dashboard-grid" style="display: none;">
+        <!-- Win Card -->
+        <div class="stat-card">
+            <div class="stat-title">獨贏 (Win)</div>
+            <div class="stat-value" id="win-rate">--%</div>
+            <div class="stat-sub" id="win-hits">Hits: -- / --</div>
+            <div class="stat-desc">Top 2 貼士包含頭馬 (冠)</div>
+        </div>
+
+        <!-- Q Card -->
+        <div class="stat-card">
+            <div class="stat-title">連贏 (Q)</div>
+            <div class="stat-value" id="q-rate">--%</div>
+            <div class="stat-sub" id="q-hits">Hits: -- / --</div>
+            <div class="stat-desc">Top 3 貼士包含冠亞</div>
+        </div>
+
+        <!-- T Card -->
+        <div class="stat-card">
+            <div class="stat-title">三重彩 (T)</div>
+            <div class="stat-value" id="t-rate">--%</div>
+            <div class="stat-sub" id="t-hits">Hits: -- / --</div>
+            <div class="stat-desc">Top 4 貼士包含冠亞季</div>
+        </div>
+
+        <!-- F4 Card -->
+        <div class="stat-card">
+            <div class="stat-title">四重彩 (F4)</div>
+            <div class="stat-value" id="f4-rate">--%</div>
+            <div class="stat-sub" id="f4-hits">Hits: -- / --</div>
+            <div class="stat-desc">Top 6 貼士包含前四名</div>
+        </div>
+    </div>
+
+    <script>
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/analysis/stats/hit-rates');
+                const data = await response.json();
+
+                if (data) {
+                    // Update Win
+                    document.getElementById('win-rate').textContent = `${data.win.rate}%`;
+                    document.getElementById('win-hits').textContent = `Hits: ${data.win.hits} / ${data.totalRaces}`;
+                    
+                    // Update Q
+                    document.getElementById('q-rate').textContent = `${data.q.rate}%`;
+                    document.getElementById('q-hits').textContent = `Hits: ${data.q.hits} / ${data.totalRaces}`;
+
+                    // Update T
+                    document.getElementById('t-rate').textContent = `${data.t.rate}%`;
+                    document.getElementById('t-hits').textContent = `Hits: ${data.t.hits} / ${data.totalRaces}`;
+
+                    // Update F4
+                    document.getElementById('f4-rate').textContent = `${data.f4.rate}%`;
+                    document.getElementById('f4-hits').textContent = `Hits: ${data.f4.hits} / ${data.totalRaces}`;
+
+                    document.getElementById('loading').style.display = 'none';
+                    document.getElementById('dashboard').style.display = 'grid';
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+                document.getElementById('loading').textContent = '載入失敗';
+            }
+        }
+
+        loadStats();
+    </script>
+</body>
+</html>

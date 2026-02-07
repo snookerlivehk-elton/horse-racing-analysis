@@ -784,6 +784,11 @@ app.get('/stats', (req, res) => {
     res.render('stats');
 });
 
+// New Hit Rate Analysis Page
+app.get('/analysis/hit-rates', (req, res) => {
+    res.render('hit_rates');
+});
+
 app.get('/api/analysis/stats/system', async (req, res) => {
     try {
         const { startDate, endDate } = req.query;
@@ -794,6 +799,20 @@ app.get('/api/analysis/stats/system', async (req, res) => {
         res.json(stats);
     } catch (error: any) {
         console.error('Error fetching system stats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.get('/api/analysis/stats/hit-rates', async (req, res) => {
+    try {
+        const { startDate, endDate } = req.query;
+        const stats = await analysisService.getHitRateStats(
+            startDate as string,
+            endDate as string
+        );
+        res.json(stats);
+    } catch (error: any) {
+        console.error('Error fetching hit rate stats:', error);
         res.status(500).json({ error: error.message });
     }
 });

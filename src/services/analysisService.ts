@@ -250,47 +250,33 @@ export class AnalysisService {
         const analysis: TrendAnalysis[] = [];
 
         for (const horseStr of allHorses) {
+            const startRank = startRanks.indexOf(horseStr) + 1;
+            const endRank = endRanks.indexOf(horseStr) + 1;
+            
+            // Skip if not ranked in one of the snapshots (shouldn't happen if full list)
+            if (startRank === 0 || endRank === 0) continue;
+
+            const rankChange = startRank - endRank; // Positive means improved (e.g. 10 -> 5 = +5)
             const horseNo = parseInt(horseStr);
-            
-            // Rank is index + 1
-            const rankStart = startRanks.indexOf(horseStr) + 1 || 99; // 99 if missing
-            const rankEnd = endRanks.indexOf(horseStr) + 1 || 99;
-
-            // Metrics
-            const rankChange = (rankStart !== 99 && rankEnd !== 99) ? (rankStart - rankEnd) : 0;
-            const isBigMover = rankChange >= 5;
-            
-            // Steady Favorite: Must be in Top 3 at start and end (and ideally middle, but simplified here)
-            const isSteadyFavorite = rankStart <= 3 && rankEnd <= 3;
-
-            // Result
-            let resultData = undefined;
-            if (winner) {
-                let place = 0;
-                if (winner === horseNo) place = 1;
-                else if (placings.includes(horseNo)) place = placings.indexOf(horseNo) + 2; // Approximate place
-
-                resultData = {
-                    place: place,
-                    winDividend: (place === 1) ? winDividend : 0
-                };
-            }
 
             analysis.push({
                 horseNo,
-                rank30: rankStart,
-                rank0: rankEnd,
+                rank30: startRank,
+                rank0: endRank,
                 rankChange,
-                isBigMover,
-                isSteadyFavorite,
-                result: resultData
+                isBigMover: rankChange >= 5,
+                isSteadyFavorite: startRank <= 3 && endRank <= 3,
+                result: winner ? {
+                    place: winner === horseNo ? 1 : (placings.includes(horseNo) ? 0 : -1), // Simplified place
+                    winDividend: winner === horseNo ? winDividend : 0
+                } : undefined
             });
         }
 
-        return analysis.sort((a, b) => a.rank0 - b.rank0); // Sort by final rank (popularity)
+        return analysis;
     }
 
-    // 3. Hit Rate Statistics (Trend & Pundit vs Result)
+    // 3. Hit Rate Analysis (Win/Q/T/F4)
     async getHitRateStats(startDate?: string, endDate?: string) {
         const whereClause: any = {};
         if (startDate && endDate) {
@@ -300,146 +286,73 @@ export class AnalysisService {
         const races = await prisma.race.findMany({
             where: {
                 ...whereClause,
-                j18Payouts: { some: {} } // Must have results
+                j18Likes: { some: {} },
+                results: { some: {} }
             },
             include: {
                 j18Likes: true,
-                j18Trends: true,
-                j18Payouts: true
+                results: true
             }
         });
 
         const stats = {
             totalRaces: 0,
-            punditStats: { 
-                winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0,
-                winRevenue: 0, qRevenue: 0, tRevenue: 0, f4Revenue: 0,
-                winCost: 0, qCost: 0, tCost: 0, f4Cost: 0
-            },
-            compositeStats: { 
-                winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0,
-                winRevenue: 0, qRevenue: 0, tRevenue: 0, f4Revenue: 0,
-                winCost: 0, qCost: 0, tCost: 0, f4Cost: 0
-            },
-            trendStats: {} as Record<string, { 
-                winHit: number, qHit: number, tHit: number, f4Hit: number, count: number,
-                winRevenue: number, qRevenue: number, tRevenue: number, f4Revenue: number,
-                winCost: number, qCost: number, tCost: number, f4Cost: number
-            }>
+            win: { hits: 0, rate: 0 }, // Top 2 picks contain Winner
+            q: { hits: 0, rate: 0 },   // Top 3 picks contain Top 2 (Q)
+            t: { hits: 0, rate: 0 },   // Top 4 picks contain Top 3 (T)
+            f4: { hits: 0, rate: 0 }   // Top 6 picks contain Top 4 (F4)
         };
 
-        // Standard Betting Assumptions (Cost per Race)
-        // const COSTS = { WIN: 20, Q: 30, T: 240, F4: 3600 }; // Now in calculateRaceRewards
-
         for (const race of races) {
-            if (!race.j18Payouts[0]) continue;
-            
-            const payouts = race.j18Payouts[0].payouts as unknown as J18PayoutItem[];
-            const { winner } = this.parseResults(payouts);
-            
-            if (!winner) continue;
+            if (!race.j18Likes[0] || race.results.length === 0) continue;
+
+            const picks = race.j18Likes[0].recommendations as number[];
+            const results = race.results;
+
+            // Get actual placings
+            const winner = results.find(r => r.place === 1)?.horseNo;
+            const top2 = results.filter(r => r.place && r.place <= 2).map(r => r.horseNo);
+            const top3 = results.filter(r => r.place && r.place <= 3).map(r => r.horseNo);
+            const top4 = results.filter(r => r.place && r.place <= 4).map(r => r.horseNo);
+
+            if (!winner) continue; // Skip if no results
 
             stats.totalRaces++;
 
-            // 1. Pundit Stats
-            if (race.j18Likes[0]) {
-                const picks = race.j18Likes[0].recommendations as unknown as number[];
-                if (picks && picks.length > 0) {
-                    const res = this.calculateRaceRewards(payouts, picks);
-                    stats.punditStats.count++;
-                    
-                    // Add Costs
-                    stats.punditStats.winCost += res.win.cost;
-                    stats.punditStats.qCost += res.q.cost;
-                    stats.punditStats.tCost += res.t.cost;
-                    stats.punditStats.f4Cost += res.f4.cost;
-
-                    if (res.win.hit) { stats.punditStats.winHit++; stats.punditStats.winRevenue += res.win.rev; }
-                    if (res.q.hit) { stats.punditStats.qHit++; stats.punditStats.qRevenue += res.q.rev; }
-                    if (res.t.hit) { stats.punditStats.tHit++; stats.punditStats.tRevenue += res.t.rev; }
-                    if (res.f4.hit) { stats.punditStats.f4Hit++; stats.punditStats.f4Revenue += res.f4.rev; }
-                }
+            // Win Hit: Winner in Top 2 picks
+            // Logic: Is the winner present in the first 2 picks?
+            if (picks.slice(0, 2).includes(winner)) {
+                stats.win.hits++;
             }
 
-            // 2. Composite Stats (Pundit + T30, T15, T10, T5)
-            const horseScores = new Map<number, number>();
-            const scoreMap = [6, 5, 4, 3, 2, 1]; // Points for Rank 1-6
-
-            // Add Pundit Scores
-            if (race.j18Likes[0]) {
-                const picks = race.j18Likes[0].recommendations as unknown as number[];
-                if (picks) {
-                    picks.slice(0, 6).forEach((horse, idx) => {
-                        const current = horseScores.get(horse) || 0;
-                        horseScores.set(horse, current + scoreMap[idx]);
-                    });
-                }
+            // Q Hit: Top 2 horses in Top 3 picks
+            // Logic: Do the first 3 picks contain at least 2 horses from the actual Top 2?
+            const qMatches = picks.slice(0, 3).filter(p => top2.includes(p));
+            if (qMatches.length >= 2) {
+                stats.q.hits++;
             }
 
-            // Add Trend Scores
-            if (race.j18Trends[0]) {
-                const trendsData = race.j18Trends[0].trends as unknown as Record<string, string[]>;
-                ['30', '15', '10', '5'].forEach(key => {
-                    if (trendsData[key]) {
-                        const picks = trendsData[key].map(Number);
-                        picks.slice(0, 6).forEach((horse, idx) => {
-                            const current = horseScores.get(horse) || 0;
-                            horseScores.set(horse, current + scoreMap[idx]);
-                        });
-                    }
-                });
+            // T Hit: Top 3 horses in Top 4 picks
+            // Logic: Do the first 4 picks contain at least 3 horses from the actual Top 3? (Boxed Tierce)
+            const tMatches = picks.slice(0, 4).filter(p => top3.includes(p));
+            if (tMatches.length >= 3) {
+                stats.t.hits++;
             }
 
-            // Sort by Score Descending
-            const compositePicks = Array.from(horseScores.entries())
-                .sort((a, b) => b[1] - a[1]) // Sort by score desc
-                .map(entry => entry[0]);
-
-            if (compositePicks.length > 0) {
-                const res = this.calculateRaceRewards(payouts, compositePicks);
-                stats.compositeStats.count++;
-                
-                stats.compositeStats.winCost += res.win.cost;
-                stats.compositeStats.qCost += res.q.cost;
-                stats.compositeStats.tCost += res.t.cost;
-                stats.compositeStats.f4Cost += res.f4.cost;
-
-                if (res.win.hit) { stats.compositeStats.winHit++; stats.compositeStats.winRevenue += res.win.rev; }
-                if (res.q.hit) { stats.compositeStats.qHit++; stats.compositeStats.qRevenue += res.q.rev; }
-                if (res.t.hit) { stats.compositeStats.tHit++; stats.compositeStats.tRevenue += res.t.rev; }
-                if (res.f4.hit) { stats.compositeStats.f4Hit++; stats.compositeStats.f4Revenue += res.f4.rev; }
+            // F4 Hit: Top 4 horses in Top 6 picks
+            // Logic: Do the first 6 picks contain at least 4 horses from the actual Top 4? (Boxed First 4)
+            const f4Matches = picks.slice(0, 6).filter(p => top4.includes(p));
+            if (f4Matches.length >= 4) {
+                stats.f4.hits++;
             }
+        }
 
-            // 3. Trend Stats
-            if (race.j18Trends[0]) {
-                const trendsData = race.j18Trends[0].trends as unknown as Record<string, string[]>;
-                Object.keys(trendsData).forEach(timeKey => {
-                    const picks = trendsData[timeKey].map(Number);
-                    if (picks.length > 0) {
-                        if (!stats.trendStats[timeKey]) {
-                            stats.trendStats[timeKey] = { 
-                                winHit: 0, qHit: 0, tHit: 0, f4Hit: 0, count: 0,
-                                winRevenue: 0, qRevenue: 0, tRevenue: 0, f4Revenue: 0,
-                                winCost: 0, qCost: 0, tCost: 0, f4Cost: 0
-                            };
-                        }
-                        
-                        const res = this.calculateRaceRewards(payouts, picks);
-                        stats.trendStats[timeKey].count++;
-                        
-                        // Add Costs
-                        stats.trendStats[timeKey].winCost += res.win.cost;
-                        stats.trendStats[timeKey].qCost += res.q.cost;
-                        stats.trendStats[timeKey].tCost += res.t.cost;
-                        stats.trendStats[timeKey].f4Cost += res.f4.cost;
-
-                        if (res.win.hit) { stats.trendStats[timeKey].winHit++; stats.trendStats[timeKey].winRevenue += res.win.rev; }
-                        if (res.q.hit) { stats.trendStats[timeKey].qHit++; stats.trendStats[timeKey].qRevenue += res.q.rev; }
-                        if (res.t.hit) { stats.trendStats[timeKey].tHit++; stats.trendStats[timeKey].tRevenue += res.t.rev; }
-                        if (res.f4.hit) { stats.trendStats[timeKey].f4Hit++; stats.trendStats[timeKey].f4Revenue += res.f4.rev; }
-                    }
-                });
-            }
+        // Calculate Rates
+        if (stats.totalRaces > 0) {
+            stats.win.rate = parseFloat(((stats.win.hits / stats.totalRaces) * 100).toFixed(1));
+            stats.q.rate = parseFloat(((stats.q.hits / stats.totalRaces) * 100).toFixed(1));
+            stats.t.rate = parseFloat(((stats.t.hits / stats.totalRaces) * 100).toFixed(1));
+            stats.f4.rate = parseFloat(((stats.f4.hits / stats.totalRaces) * 100).toFixed(1));
         }
 
         return stats;
