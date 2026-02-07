@@ -40,7 +40,7 @@ app.use((req, res, next) => {
 
 // Start Scheduler
 startScheduler();
-const VERSION = "1.6.7"; // Bump version to force update & confirm deployment
+const VERSION = "1.6.8"; // Bump version to force update & confirm deployment
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
