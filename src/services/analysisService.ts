@@ -106,7 +106,8 @@ export class AnalysisService {
         }
         
         // F4 (Top 6 Box)
-        const f4Pool = payouts.find(p => p.name.includes('四重彩') || p.name.includes('四連環'));
+        // Prioritize First 4 (四重彩) over Quartet (四連環) as it pays more and matches "F4" better
+        const f4Pool = payouts.find(p => p.name.includes('四重彩')) || payouts.find(p => p.name.includes('四連環'));
         if (f4Pool) {
             const myPicks = new Set(picks.slice(0, 6));
             for (const item of f4Pool.list) {
