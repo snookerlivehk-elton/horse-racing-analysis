@@ -445,7 +445,7 @@ export class AnalysisService {
     }
 
     // 4. Daily Hit Rate Statistics (For Charts & Tables)
-    async getDailyStats(startDate: string, endDate: string, type: 'pundit' | 'trend', trendKey?: string) {
+    async getDailyStats(startDate: string, endDate: string, type: 'pundit' | 'trend' | 'composite', trendKey?: string) {
         const whereClause: any = {
             date: { gte: startDate, lte: endDate },
             j18Payouts: { some: {} }
@@ -509,6 +509,39 @@ export class AnalysisService {
                         picks = trends[trendKey].map(Number);
                     }
                 }
+            } else if (type === 'composite') {
+                const horseScores = new Map<number, number>();
+                const scoreMap = [6, 5, 4, 3, 2, 1]; // Points for Rank 1-6
+
+                // Add Pundit Scores
+                if (race.j18Likes[0]) {
+                    const punditPicks = race.j18Likes[0].recommendations as unknown as number[];
+                    if (punditPicks) {
+                        punditPicks.slice(0, 6).forEach((horse, idx) => {
+                            const current = horseScores.get(horse) || 0;
+                            horseScores.set(horse, current + scoreMap[idx]);
+                        });
+                    }
+                }
+
+                // Add Trend Scores
+                if (race.j18Trends[0]) {
+                    const trendsData = race.j18Trends[0].trends as unknown as Record<string, string[]>;
+                    ['30', '15', '10', '5'].forEach(key => {
+                        if (trendsData[key]) {
+                            const trendPicks = trendsData[key].map(Number);
+                            trendPicks.slice(0, 6).forEach((horse, idx) => {
+                                const current = horseScores.get(horse) || 0;
+                                horseScores.set(horse, current + scoreMap[idx]);
+                            });
+                        }
+                    });
+                }
+
+                // Sort by Score Descending
+                picks = Array.from(horseScores.entries())
+                    .sort((a, b) => b[1] - a[1]) // Sort by score desc
+                    .map(entry => entry[0]);
             }
 
             if (picks.length === 0) continue;

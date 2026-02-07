@@ -210,6 +210,7 @@
             <label>分析項目:</label>
             <select id="analysisType">
                 <option value="pundit">👤 名家推介 (J18 Likes)</option>
+                <option value="composite">🔥 綜合熱度 (Composite Heat)</option>
                 <option value="trend-30">📉 綜合走勢 T-30</option>
                 <option value="trend-25">📉 綜合走勢 T-25</option>
                 <option value="trend-20">📉 綜合走勢 T-20</option>
@@ -293,7 +294,9 @@
             let type = 'pundit';
             let trendKey = '';
             
-            if (typeVal.startsWith('trend-')) {
+            if (typeVal === 'composite') {
+                type = 'composite';
+            } else if (typeVal.startsWith('trend-')) {
                 type = 'trend';
                 trendKey = typeVal.split('-')[1];
             }
