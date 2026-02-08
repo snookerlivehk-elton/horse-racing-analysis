@@ -53,6 +53,90 @@ export interface ScrapeResult {
     raceDate?: string;
 }
 
+export interface MeetingInfo {
+    hasMeeting: boolean;
+    date?: string;
+    venue?: string; // "ST" or "HV"
+    raceCount?: number;
+}
+
+export async function checkMeeting(dateStr: string): Promise<MeetingInfo> {
+    // dateStr format: YYYY-MM-DD
+    // HKJC Results URL requires YYYY/MM/DD
+    const formattedDate = dateStr.replace(/-/g, '/');
+    const url = `https://racing.hkjc.com/racing/information/Chinese/Racing/Results.aspx?RD=${formattedDate}`;
+    
+    try {
+        console.log(`Checking meeting for ${dateStr} at ${url}...`);
+        const html = await fetchHtml(url);
+        const $ = cheerio.load(html);
+
+        // Check if "No race meeting" or similar (HKJC usually redirects or shows empty)
+        // A valid meeting page usually has race tabs images or links
+        // Look for "Race 1" image/link: <img src="/racing/info/images/num_1.gif"> or similar
+        // Or look for venue text
+        
+        const text = $.root().text();
+        let venue = '';
+        
+        if (text.includes('沙田') || text.includes('Sha Tin')) {
+            venue = 'ST';
+        } else if (text.includes('跑馬地') || text.includes('Happy Valley')) {
+            venue = 'HV';
+        }
+
+        if (!venue) {
+            // Check if it's "Cross Country" (Simulcast) - we usually ignore these for local analysis?
+            // If local race, it must be ST or HV.
+            // If text contains "No Information" or empty table
+            if ($('.raceMeeting_select').length === 0 && $('.race_tab').length === 0) {
+                 return { hasMeeting: false };
+            }
+        }
+
+        // Count Races
+        // Look for race selection images/tabs
+        // Usually div with class 'race_tab' or similar, or just count the images
+        let raceCount = 0;
+        // HKJC Results page structure: 
+        // <td class="tr_race_tab"><a href="Results.aspx?RD=...&RaceNo=1"><img src="..."></a></td>
+        // Actually often they use images like num_1_b.gif
+        
+        // Simpler way: Check for "Race X" links in the top bar
+        const raceLinks = $('a[href*="RaceNo="]');
+        if (raceLinks.length > 0) {
+            // Find max RaceNo
+            raceLinks.each((_, el) => {
+                const href = $(el).attr('href') || '';
+                const match = href.match(/RaceNo=(\d+)/);
+                if (match) {
+                    const num = parseInt(match[1]);
+                    if (num > raceCount) raceCount = num;
+                }
+            });
+        }
+        
+        // Double check: Sometimes Results page defaults to Race 1.
+        if (raceCount === 0 && venue) {
+             // Maybe only 1 race? Unlikely.
+             // If we found venue but no race links, it might be parsing error.
+             // Assume at least 8 races? No, dangerous.
+             // Let's look for "第一場" etc in text?
+             // Let's try another selector: .raceNum
+        }
+
+        if (venue && raceCount > 0) {
+            return { hasMeeting: true, date: dateStr, venue, raceCount };
+        }
+        
+        return { hasMeeting: false };
+
+    } catch (error) {
+        console.error(`Error checking meeting for ${dateStr}:`, error);
+        return { hasMeeting: false };
+    }
+}
+
 const BASE_URL = 'https://racing.hkjc.com';
 const RACECARD_URL = 'https://racing.hkjc.com/zh-hk/local/information/racecard';
 

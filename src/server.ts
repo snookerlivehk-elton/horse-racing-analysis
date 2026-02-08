@@ -286,49 +286,145 @@ app.post('/api/odds/push', async (req, res) => {
     }
 });
 
+import { checkMeeting } from './hkjcScraper';
+
+// Helper to generate date range
+function getDateRange(startDateStr: string, endDateStr: string): string[] {
+    const dates: string[] = [];
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    
+    // Safety check: Don't generate too many
+    if (start > end) return [];
+    
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        dates.push(d.toISOString().split('T')[0]);
+    }
+    return dates;
+}
+
 app.get('/api/scrape-race-data', async (req, res) => {
     try {
-        console.log('Starting Manual Update (SpeedPro + J18 API)...');
-        // Date parameter is largely ignored for SpeedPro as it always shows the latest meeting,
-        // but we use it for J18 API calls if provided.
-        const dateParam = req.query.date ? (req.query.date as string) : undefined;
+        console.log('Starting Manual Update (Backfill + SpeedPro + J18 API)...');
         
-        // 1. Scrape SpeedPro (Populates Race, SpeedPro, and RaceResult basic info)
+        const dateParam = req.query.date ? (req.query.date as string) : undefined;
+        let datesToProcess: string[] = [];
+        
+        if (dateParam) {
+            // Specific date requested
+            datesToProcess.push(dateParam);
+        } else {
+            // Logic:
+            // 1. Find latest race date in DB (before today)
+            // 2. Loop from that date + 1 to Today
+            
+            const today = new Date();
+            const todayStr = today.toISOString().split('T')[0];
+            
+            const latestRace = await prisma.race.findFirst({
+                where: { date: { lte: todayStr } },
+                orderBy: { date: 'desc' }
+            });
+            
+            let startDateStr = todayStr;
+            if (latestRace) {
+                const latestDate = new Date(latestRace.date);
+                latestDate.setDate(latestDate.getDate() + 1); // Start from next day
+                startDateStr = latestDate.toISOString().split('T')[0];
+            } else {
+                // No data in DB? Start from 14 days ago as default?
+                const d = new Date();
+                d.setDate(d.getDate() - 14);
+                startDateStr = d.toISOString().split('T')[0];
+            }
+            
+            datesToProcess = getDateRange(startDateStr, todayStr);
+            if (datesToProcess.length === 0) {
+                 // If up to date, at least check Today
+                 datesToProcess.push(todayStr);
+            }
+            
+            console.log(`Auto-detected date range: ${startDateStr} to ${todayStr} (${datesToProcess.length} days)`);
+        }
+
+        const resultsLog: string[] = [];
+
+        // 1. Run SpeedPro Scraper FIRST (It usually grabs the *Latest/Next* meeting)
+        // We run it unconditionally to ensure we have the latest SpeedPro data.
         console.log('Step 1: Scraping SpeedPro...');
         await speedProScraper.scrapeAll();
         
-        // We need to know the date of the race we just scraped to call J18 API correctly.
-        // Since SpeedProScraper doesn't return the date, we find the latest race in DB.
-        const latestRace = await prisma.race.findFirst({
-            orderBy: { date: 'desc' }
-        });
-        
-        const targetDate = dateParam || latestRace?.date;
-        
-        if (!targetDate) {
-            throw new Error('Could not determine race date from SpeedPro scrape.');
-        }
+        // Find what date SpeedPro just scraped (it's the latest in DB now)
+        const speedProLatestRace = await prisma.race.findFirst({ orderBy: { date: 'desc' } });
+        const speedProDate = speedProLatestRace?.date;
+        console.log(`SpeedPro scraped date seems to be: ${speedProDate}`);
 
-        console.log(`Step 2: Fetching J18 API Data for ${targetDate}...`);
+        // 2. Iterate and Backfill
+        console.log(`Step 2: Processing ${datesToProcess.length} days...`);
         
-        // 2. Fetch J18 Data (Trends, Likes, Payouts)
-        // Normalize date to YYYY-MM-DD for J18 API if needed (J18 usually expects YYYY-MM-DD)
-        const dateIso = targetDate.replace(/\//g, '-');
-        
-        await Promise.all([
-            scrapeAndSaveJ18Trend(dateIso),
-            scrapeAndSaveJ18Like(dateIso),
-            scrapeAndSaveJ18Payout(dateIso)
-        ]);
+        for (const date of datesToProcess) {
+            console.log(`Processing ${date}...`);
+            const dateIso = date.replace(/\//g, '-');
+            let raceExists = false;
+            
+            // Check if race exists in DB
+            const existingRace = await prisma.race.findFirst({ where: { date: dateIso } });
+            
+            if (existingRace) {
+                raceExists = true;
+                console.log(`Race for ${date} already exists.`);
+            } else {
+                // If not exists, check if it's the SpeedPro date we just scraped
+                if (speedProDate === dateIso) {
+                    raceExists = true;
+                    console.log(`Race for ${date} was just created by SpeedPro.`);
+                } else {
+                    // Try to find meeting via HKJC Results Page
+                    const meeting = await checkMeeting(dateIso);
+                    if (meeting.hasMeeting && meeting.venue && meeting.raceCount) {
+                        console.log(`Found meeting for ${date}: ${meeting.venue}, ${meeting.raceCount} races.`);
+                        // Create Races
+                        for (let i = 1; i <= meeting.raceCount; i++) {
+                             const hkjcId = `${dateIso.replace(/-/g, '')}-${meeting.venue}-${i}`;
+                             await prisma.race.upsert({
+                                 where: { hkjcId },
+                                 update: {},
+                                 create: {
+                                     hkjcId,
+                                     date: dateIso,
+                                     venue: meeting.venue!,
+                                     raceNo: i,
+                                     startTime: new Date(`${dateIso}T12:00:00Z`) // Dummy time
+                                 }
+                             });
+                        }
+                        raceExists = true;
+                        resultsLog.push(`Created meeting for ${date}`);
+                    } else {
+                        console.log(`No meeting found for ${date}.`);
+                    }
+                }
+            }
+            
+            if (raceExists) {
+                // Call J18 API
+                console.log(`Fetching J18 API Data for ${dateIso}...`);
+                await Promise.all([
+                    scrapeAndSaveJ18Trend(dateIso),
+                    scrapeAndSaveJ18Like(dateIso),
+                    scrapeAndSaveJ18Payout(dateIso)
+                ]);
+                resultsLog.push(`Updated J18 for ${date}`);
+            }
+        }
 
         console.log('Manual Update Completed.');
 
         res.json({
             success: true,
-            raceDate: targetDate,
-            message: 'Updated SpeedPro and J18 Data successfully.',
+            message: `Processed ${datesToProcess.length} days. ${resultsLog.join(', ')}`,
             dbStatus: {
-                saved: 0, // Legacy field
+                saved: 0, 
                 errors: []
             }
         });
