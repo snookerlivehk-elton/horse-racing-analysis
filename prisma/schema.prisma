@@ -96,6 +96,8 @@ model RaceResult {
   gear        String?  // Gear
   
   createdAt   DateTime @default(now())
+  
+  @@unique([raceId, horseNo])
 }
 
 model Horse {

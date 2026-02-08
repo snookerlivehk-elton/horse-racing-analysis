@@ -161,13 +161,13 @@ export class SpeedProScraper {
                     },
                     update: {
                         horseName,
-                        draw: draw || undefined
+                        draw: draw ? draw.toString() : undefined
                     },
                     create: {
                         raceId: race.id,
                         horseNo,
                         horseName,
-                        draw: draw || undefined,
+                        draw: draw ? draw.toString() : undefined,
                         jockey: 'N/A', // SpeedPro doesn't provide jockey
                         trainer: 'N/A' // SpeedPro doesn't provide trainer
                     }
