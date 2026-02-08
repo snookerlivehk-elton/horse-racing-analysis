@@ -53,7 +53,12 @@ export class AnalysisService {
             win: { hit: 0, rev: 0, cost: COSTS.WIN },
             q: { hit: 0, rev: 0, cost: COSTS.Q },
             t: { hit: 0, rev: 0, cost: COSTS.T },
-            f4: { hit: 0, rev: 0, cost: COSTS.F4 }
+            f4: { hit: 0, rev: 0, cost: COSTS.F4 },
+            // Box 6 Hit Checks (Probability only, no financial simulation)
+            win6: { hit: 0 },
+            q6: { hit: 0 },
+            t6: { hit: 0 },
+            f46: { hit: 0 }
         };
         
         // Helper to parse amount
@@ -64,7 +69,10 @@ export class AnalysisService {
             return 0;
         };
         
-        // WIN (Top 2 picks)
+        // Picks Set for Box 6
+        const picks6 = new Set(picks.slice(0, 6));
+
+        // WIN (Top 2 picks) & WIN (Box 6)
         const winPool = payouts.find(p => p.name.includes('獨贏'));
         if (winPool) {
             const myPicks = new Set(picks.slice(0, 2));
@@ -74,10 +82,14 @@ export class AnalysisService {
                     res.win.hit = 1;
                     res.win.rev += parseAmt(item.paicai);
                 }
+                // Box 6 Check
+                if (picks6.has(winner)) {
+                    res.win6.hit = 1;
+                }
             }
         }
         
-        // Q (Top 3 Box)
+        // Q (Top 3 Box) & Q (Box 6)
         const qPool = payouts.find(p => p.name.includes('連贏'));
         if (qPool) {
             const myPicks = picks.slice(0, 3);
@@ -88,10 +100,14 @@ export class AnalysisService {
                     res.q.hit = 1;
                     res.q.rev += parseAmt(item.paicai);
                 }
+                // Box 6 Check
+                if (parts.length >= 2 && parts.every(h => picks6.has(h))) {
+                    res.q6.hit = 1;
+                }
             }
         }
         
-        // T (Top 4 Box)
+        // T (Top 4 Box) & T (Box 6)
         const tPool = payouts.find(p => p.name.includes('三重彩')); // Tierce (ordered)
         if (tPool) {
             const myPicks = new Set(picks.slice(0, 4));
@@ -102,10 +118,14 @@ export class AnalysisService {
                     res.t.hit = 1;
                     res.t.rev += parseAmt(item.paicai);
                 }
+                // Box 6 Check
+                if (parts.length >= 3 && parts.every(h => picks6.has(h))) {
+                    res.t6.hit = 1;
+                }
             }
         }
         
-        // F4 (Top 6 Box)
+        // F4 (Top 6 Box) & F4 (Box 6)
         // Prioritize First 4 (四重彩) over Quartet (四連環) as it pays more and matches "F4" better
         const f4Pool = payouts.find(p => p.name.includes('四重彩')) || payouts.find(p => p.name.includes('四連環'));
         if (f4Pool) {
@@ -115,6 +135,10 @@ export class AnalysisService {
                 if (parts.length >= 4 && parts.every(h => myPicks.has(h))) {
                     res.f4.hit = 1;
                     res.f4.rev += parseAmt(item.paicai);
+                }
+                // Box 6 Check (Identical to F4 but keeping consistent)
+                if (parts.length >= 4 && parts.every(h => picks6.has(h))) {
+                    res.f46.hit = 1;
                 }
             }
         }
@@ -398,7 +422,12 @@ export class AnalysisService {
             win: { hits: 0, rate: 0, revenue: 0, cost: 0, net: 0, roi: 0 },
             q: { hits: 0, rate: 0, revenue: 0, cost: 0, net: 0, roi: 0 },
             t: { hits: 0, rate: 0, revenue: 0, cost: 0, net: 0, roi: 0 },
-            f4: { hits: 0, rate: 0, revenue: 0, cost: 0, net: 0, roi: 0 }
+            f4: { hits: 0, rate: 0, revenue: 0, cost: 0, net: 0, roi: 0 },
+            // New Box 6 Metrics
+            win6: { hits: 0, rate: 0 },
+            q6: { hits: 0, rate: 0 },
+            t6: { hits: 0, rate: 0 },
+            f46: { hits: 0, rate: 0 }
         };
 
         for (const race of races) {
@@ -428,18 +457,31 @@ export class AnalysisService {
             stats.f4.cost += res.f4.cost;
             stats.f4.revenue += res.f4.rev;
             if (res.f4.hit) stats.f4.hits++;
+
+            // Accumulate Box 6 Hits
+            if (res.win6.hit) stats.win6.hits++;
+            if (res.q6.hit) stats.q6.hits++;
+            if (res.t6.hit) stats.t6.hits++;
+            if (res.f46.hit) stats.f46.hits++;
         }
 
         if (stats.totalRaces > 0) {
             const calc = (s: any) => {
                 s.rate = parseFloat(((s.hits / stats.totalRaces) * 100).toFixed(1));
-                s.net = s.revenue - s.cost;
-                s.roi = s.cost > 0 ? parseFloat(((s.net / s.cost) * 100).toFixed(1)) : 0;
+                if (s.cost !== undefined) {
+                    s.net = s.revenue - s.cost;
+                    s.roi = s.cost > 0 ? parseFloat(((s.net / s.cost) * 100).toFixed(1)) : 0;
+                }
             };
             calc(stats.win);
             calc(stats.q);
             calc(stats.t);
             calc(stats.f4);
+            
+            calc(stats.win6);
+            calc(stats.q6);
+            calc(stats.t6);
+            calc(stats.f46);
         }
 
         return stats;
@@ -473,10 +515,12 @@ export class AnalysisService {
             q: { hit: number, revenue: number, cost: number };
             t: { hit: number, revenue: number, cost: number };
             f4: { hit: number, revenue: number, cost: number };
+            // New Box 6 Metrics (Hits only)
+            win6: { hit: number };
+            q6: { hit: number };
+            t6: { hit: number };
+            f46: { hit: number };
         }>();
-
-        // Standard Betting Assumptions
-        // const COSTS = { WIN: 20, Q: 30, T: 240, F4: 3600 }; // Now in calculateRaceRewards
 
         for (const race of races) {
             if (!race.j18Payouts[0]) continue;
@@ -490,7 +534,11 @@ export class AnalysisService {
                     win: { hit: 0, revenue: 0, cost: 0 },
                     q: { hit: 0, revenue: 0, cost: 0 },
                     t: { hit: 0, revenue: 0, cost: 0 },
-                    f4: { hit: 0, revenue: 0, cost: 0 }
+                    f4: { hit: 0, revenue: 0, cost: 0 },
+                    win6: { hit: 0 },
+                    q6: { hit: 0 },
+                    t6: { hit: 0 },
+                    f46: { hit: 0 }
                 });
             }
             const entry = dailyMap.get(dateStr)!;
@@ -570,6 +618,11 @@ export class AnalysisService {
             if (res.q.hit) { entry.q.hit++; entry.q.revenue += res.q.rev; }
             if (res.t.hit) { entry.t.hit++; entry.t.revenue += res.t.rev; }
             if (res.f4.hit) { entry.f4.hit++; entry.f4.revenue += res.f4.rev; }
+
+            if (res.win6.hit) entry.win6.hit++;
+            if (res.q6.hit) entry.q6.hit++;
+            if (res.t6.hit) entry.t6.hit++;
+            if (res.f46.hit) entry.f46.hit++;
         }
 
         // Final Transform to Array
@@ -587,6 +640,14 @@ export class AnalysisService {
                     roi: parseFloat(roi.toFixed(1))
                 };
             };
+            
+            const calcRate = (metrics: { hit: number }) => {
+                const rate = d.count > 0 ? (metrics.hit / d.count * 100) : 0;
+                return {
+                    hits: metrics.hit,
+                    rate: parseFloat(rate.toFixed(1))
+                };
+            };
 
             return {
                 date: d.date,
@@ -594,7 +655,11 @@ export class AnalysisService {
                 win: calc(d.win),
                 q: calc(d.q),
                 t: calc(d.t),
-                f4: calc(d.f4)
+                f4: calc(d.f4),
+                win6: calcRate(d.win6),
+                q6: calcRate(d.q6),
+                t6: calcRate(d.t6),
+                f46: calcRate(d.f46)
             };
         });
     }

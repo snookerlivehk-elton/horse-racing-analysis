@@ -217,6 +217,11 @@
             <button class="metric-btn" onclick="updateChartMetric('q')">Q (連贏)</button>
             <button class="metric-btn" onclick="updateChartMetric('t')">T (三重彩)</button>
             <button class="metric-btn" onclick="updateChartMetric('f4')">F4 (四重彩)</button>
+            <span style="margin: 0 10px; border-left: 1px solid #666;"></span>
+            <button class="metric-btn" onclick="updateChartMetric('win6')">Win (Box 6)</button>
+            <button class="metric-btn" onclick="updateChartMetric('q6')">Q (Box 6)</button>
+            <button class="metric-btn" onclick="updateChartMetric('t6')">T (Box 6)</button>
+            <button class="metric-btn" onclick="updateChartMetric('f46')">F4 (Box 6)</button>
         </div>
         <canvas id="trendChart"></canvas>
     </div>
@@ -232,6 +237,7 @@
                     <th colspan="3" class="section-border group-alt">Q (連贏)</th>
                     <th colspan="3" class="section-border">T (三重彩)</th>
                     <th colspan="3" class="section-border group-alt">F4 (四重彩)</th>
+                    <th colspan="4" class="section-border">Box 6 機率 (不計排位)</th>
                 </tr>
                 <tr>
                     <th class="section-border">命中%</th>
@@ -246,6 +252,10 @@
                     <th class="section-border group-alt">命中%</th>
                     <th class="group-alt">彩金</th>
                     <th class="group-alt">回報率</th>
+                    <th class="section-border">Win</th>
+                    <th>Q</th>
+                    <th>T</th>
+                    <th>F4</th>
                 </tr>
             </thead>
             <tbody id="dataTable">
@@ -397,7 +407,11 @@
                 win: { hits: 0, revenue: 0 },
                 q: { hits: 0, revenue: 0 },
                 t: { hits: 0, revenue: 0 },
-                f4: { hits: 0, revenue: 0 }
+                f4: { hits: 0, revenue: 0 },
+                win6: { hits: 0 },
+                q6: { hits: 0 },
+                t6: { hits: 0 },
+                f46: { hits: 0 }
             };
 
             data.forEach(d => {
@@ -405,6 +419,9 @@
                 ['win', 'q', 't', 'f4'].forEach(type => {
                     totals[type].hits += d[type].hits;
                     totals[type].revenue += d[type].revenue;
+                });
+                ['win6', 'q6', 't6', 'f46'].forEach(type => {
+                    if (d[type]) totals[type].hits += d[type].hits;
                 });
             });
 
@@ -436,6 +453,10 @@
                         <td class="section-border group-alt" style="color: var(--accent-gold);">${calcTotalRate('f4')}%</td>
                         <td class="group-alt" style="color: var(--accent-gold);">${formatCurrency(totals.f4.revenue)}</td>
                         <td class="group-alt">${formatRoi(calcTotalRoi('f4'))}</td>
+                        <td class="section-border" style="color: var(--accent-gold);">${calcTotalRate('win6')}%</td>
+                        <td style="color: var(--accent-gold);">${calcTotalRate('q6')}%</td>
+                        <td style="color: var(--accent-gold);">${calcTotalRate('t6')}%</td>
+                        <td style="color: var(--accent-gold);">${calcTotalRate('f46')}%</td>
                     </tr>
                 `;
                 tbody.innerHTML += totalRow;
@@ -458,6 +479,10 @@
                         <td class="section-border group-alt">${d.f4.rate}%</td>
                         <td class="group-alt">${formatCurrency(d.f4.revenue)}</td>
                         <td class="group-alt">${formatRoi(d.f4.roi)}</td>
+                        <td class="section-border">${d.win6 ? d.win6.rate : 0}%</td>
+                        <td>${d.q6 ? d.q6.rate : 0}%</td>
+                        <td>${d.t6 ? d.t6.rate : 0}%</td>
+                        <td>${d.f46 ? d.f46.rate : 0}%</td>
                     </tr>
                 `;
                 tbody.innerHTML += row;
@@ -517,12 +542,15 @@
                                     const idx = context.dataIndex;
                                     const day = sortedData[idx];
                                     const metric = day[currentMetric];
-                                    return [
+                                    const labels = [
                                         `命中率: ${metric.rate}%`,
-                                        `命中: ${metric.hits}/${day.raceCount}場`,
-                                        `彩金: ${formatCurrency(metric.revenue)}`,
-                                        `ROI: ${metric.roi}%`
+                                        `命中: ${metric.hits}/${day.raceCount}場`
                                     ];
+                                    if (metric.revenue !== undefined) {
+                                        labels.push(`彩金: ${formatCurrency(metric.revenue)}`);
+                                        labels.push(`ROI: ${metric.roi}%`);
+                                    }
+                                    return labels;
                                 }
                             }
                         }

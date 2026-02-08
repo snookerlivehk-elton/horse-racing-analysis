@@ -170,6 +170,10 @@
                     <th>頭三位中連贏 (Q)</th>
                     <th>頭四位中三重彩 (T)</th>
                     <th>頭六位中四重彩 (F4)</th>
+                    <th style="background: #2d3748;">中冠軍 (Box 6)</th>
+                    <th style="background: #2d3748;">中連贏 (Box 6)</th>
+                    <th style="background: #2d3748;">中三重彩 (Box 6)</th>
+                    <th style="background: #2d3748;">中四重彩 (Box 6)</th>
                 </tr>
             </thead>
             <tbody id="punditTable">
@@ -190,6 +194,10 @@
                     <th>頭三位中連贏 (Q)</th>
                     <th>頭四位中三重彩 (T)</th>
                     <th>頭六位中四重彩 (F4)</th>
+                    <th style="background: #2d3748;">中冠軍 (Box 6)</th>
+                    <th style="background: #2d3748;">中連贏 (Box 6)</th>
+                    <th style="background: #2d3748;">中三重彩 (Box 6)</th>
+                    <th style="background: #2d3748;">中四重彩 (Box 6)</th>
                 </tr>
             </thead>
             <tbody id="compositeTable">
@@ -207,6 +215,10 @@
                     <th>頭三位中連贏 (Q)</th>
                     <th>頭四位中三重彩 (T)</th>
                     <th>頭六位中四重彩 (F4)</th>
+                    <th style="background: #2d3748;">中冠軍 (Box 6)</th>
+                    <th style="background: #2d3748;">中連贏 (Box 6)</th>
+                    <th style="background: #2d3748;">中三重彩 (Box 6)</th>
+                    <th style="background: #2d3748;">中四重彩 (Box 6)</th>
                     <th>樣本數</th>
                 </tr>
             </thead>
@@ -292,6 +304,15 @@
             `;
         }
 
+        function formatRate(hits, total) {
+            if (total === 0) return '-';
+            const pct = (hits / total * 100).toFixed(1);
+            return `
+                <div style="font-size: 1.1em; font-weight: bold; color: #fbbf24;">${pct}%</div>
+                <div style="font-size: 0.8em; color: #aaa;">(${hits}/${total})</div>
+            `;
+        }
+
         function renderStats(data) {
             document.getElementById('totalRaces').innerText = data.totalRaces;
 
@@ -304,6 +325,10 @@
                     <td>${formatPct(p.q.hits, p.totalRaces, p.q.revenue, p.q.cost)}</td>
                     <td>${formatPct(p.t.hits, p.totalRaces, p.t.revenue, p.t.cost)}</td>
                     <td>${formatPct(p.f4.hits, p.totalRaces, p.f4.revenue, p.f4.cost)}</td>
+                    <td style="background: #2d3748;">${formatRate(p.win6.hits, p.totalRaces)}</td>
+                    <td style="background: #2d3748;">${formatRate(p.q6.hits, p.totalRaces)}</td>
+                    <td style="background: #2d3748;">${formatRate(p.t6.hits, p.totalRaces)}</td>
+                    <td style="background: #2d3748;">${formatRate(p.f46.hits, p.totalRaces)}</td>
                 </tr>
             `;
             document.getElementById('punditTable').innerHTML = pRow;
@@ -318,6 +343,10 @@
                         <td>${formatPct(c.q.hits, c.totalRaces, c.q.revenue, c.q.cost)}</td>
                         <td>${formatPct(c.t.hits, c.totalRaces, c.t.revenue, c.t.cost)}</td>
                         <td>${formatPct(c.f4.hits, c.totalRaces, c.f4.revenue, c.f4.cost)}</td>
+                        <td style="background: #2d3748;">${formatRate(c.win6.hits, c.totalRaces)}</td>
+                        <td style="background: #2d3748;">${formatRate(c.q6.hits, c.totalRaces)}</td>
+                        <td style="background: #2d3748;">${formatRate(c.t6.hits, c.totalRaces)}</td>
+                        <td style="background: #2d3748;">${formatRate(c.f46.hits, c.totalRaces)}</td>
                     </tr>
                 `;
                 document.getElementById('compositeTable').innerHTML = cRow;
@@ -338,6 +367,10 @@
                         <td>${formatPct(t.q.hits, t.totalRaces, t.q.revenue, t.q.cost)}</td>
                         <td>${formatPct(t.t.hits, t.totalRaces, t.t.revenue, t.t.cost)}</td>
                         <td>${formatPct(t.f4.hits, t.totalRaces, t.f4.revenue, t.f4.cost)}</td>
+                        <td style="background: #2d3748;">${formatRate(t.win6.hits, t.totalRaces)}</td>
+                        <td style="background: #2d3748;">${formatRate(t.q6.hits, t.totalRaces)}</td>
+                        <td style="background: #2d3748;">${formatRate(t.t6.hits, t.totalRaces)}</td>
+                        <td style="background: #2d3748;">${formatRate(t.f46.hits, t.totalRaces)}</td>
                         <td>${t.totalRaces}</td>
                     </tr>
                 `;
