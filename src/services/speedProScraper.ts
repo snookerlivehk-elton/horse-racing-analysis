@@ -125,7 +125,7 @@ export class SpeedProScraper {
                 const draw = parseInt(drawStr) || null;
                 const statusRating = this.parseStatusRating(statusHtml);
 
-                // Save to DB
+                // Save to DB (SpeedPro Table)
                 await prisma.speedPro.upsert({
                     where: {
                         raceId_horseNo: {
@@ -148,6 +148,28 @@ export class SpeedProScraper {
                         energyReq,
                         assessment,
                         statusRating
+                    }
+                });
+
+                // Also populate RaceResult (Basic Info) to support system views
+                await prisma.raceResult.upsert({
+                    where: {
+                        raceId_horseNo: {
+                            raceId: race.id,
+                            horseNo
+                        }
+                    },
+                    update: {
+                        horseName,
+                        draw: draw || undefined
+                    },
+                    create: {
+                        raceId: race.id,
+                        horseNo,
+                        horseName,
+                        draw: draw || undefined,
+                        jockey: 'N/A', // SpeedPro doesn't provide jockey
+                        trainer: 'N/A' // SpeedPro doesn't provide trainer
                     }
                 });
                 rowCount++;

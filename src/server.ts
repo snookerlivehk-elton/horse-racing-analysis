@@ -288,30 +288,48 @@ app.post('/api/odds/push', async (req, res) => {
 
 app.get('/api/scrape-race-data', async (req, res) => {
     try {
-        console.log('Starting scrape...');
-        // If date is provided, use it. Otherwise undefined to fetch latest.
-        const date = req.query.date ? (req.query.date as string) : undefined;
-        console.log(`Scraping for date: ${date || 'Latest (Default)'}`);
+        console.log('Starting Manual Update (SpeedPro + J18 API)...');
+        // Date parameter is largely ignored for SpeedPro as it always shows the latest meeting,
+        // but we use it for J18 API calls if provided.
+        const dateParam = req.query.date ? (req.query.date as string) : undefined;
         
-        const result = await scrapeTodayRacecard(date);
-        lastScrapeResult = result;
-        lastScrapeError = null;
+        // 1. Scrape SpeedPro (Populates Race, SpeedPro, and RaceResult basic info)
+        console.log('Step 1: Scraping SpeedPro...');
+        await speedProScraper.scrapeAll();
+        
+        // We need to know the date of the race we just scraped to call J18 API correctly.
+        // Since SpeedProScraper doesn't return the date, we find the latest race in DB.
+        const latestRace = await prisma.race.findFirst({
+            orderBy: { date: 'desc' }
+        });
+        
+        const targetDate = dateParam || latestRace?.date;
+        
+        if (!targetDate) {
+            throw new Error('Could not determine race date from SpeedPro scrape.');
+        }
 
-        // Save to DB asynchronously (don't block response too long, or block if needed)
-        // Let's await it to show DB status in response
-        console.log('Saving to database...');
-        const dbResult = await saveScrapeResultToDb(result);
-        console.log(`Saved ${dbResult.savedCount} horses to DB.`);
+        console.log(`Step 2: Fetching J18 API Data for ${targetDate}...`);
+        
+        // 2. Fetch J18 Data (Trends, Likes, Payouts)
+        // Normalize date to YYYY-MM-DD for J18 API if needed (J18 usually expects YYYY-MM-DD)
+        const dateIso = targetDate.replace(/\//g, '-');
+        
+        await Promise.all([
+            scrapeAndSaveJ18Trend(dateIso),
+            scrapeAndSaveJ18Like(dateIso),
+            scrapeAndSaveJ18Payout(dateIso)
+        ]);
 
-        // Trigger background profile update
-        const allHorses = result.races.flatMap(r => r.horses);
-        updateAllHorseProfiles(allHorses).catch(err => console.error('Background profile update error:', err));
+        console.log('Manual Update Completed.');
 
         res.json({
-            ...result,
+            success: true,
+            raceDate: targetDate,
+            message: 'Updated SpeedPro and J18 Data successfully.',
             dbStatus: {
-                saved: dbResult.savedCount,
-                errors: dbResult.errors
+                saved: 0, // Legacy field
+                errors: []
             }
         });
     } catch (e: any) {
