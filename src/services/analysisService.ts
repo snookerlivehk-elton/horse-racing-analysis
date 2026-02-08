@@ -314,7 +314,9 @@ export class AnalysisService {
         const compositePicks = new Map<string, number[]>();
         races.forEach(r => {
             const horseScores = new Map<number, number>();
-            const scoreMap = [6, 5, 4, 3, 2, 1];
+            // Old Rule: [6, 5, 4, 3, 2, 1] for Rank 1-6
+            // New Rule: Rank 1-2=6, Rank 3=5, Rank 4=4, Rank 5-6=2
+            const scoreMap = [6, 6, 5, 4, 2, 2];
 
             // Pundit Scores
             if (r.j18Likes.length > 0) {
@@ -517,7 +519,8 @@ export class AnalysisService {
                 }
             } else if (type === 'composite') {
                 const horseScores = new Map<number, number>();
-                const scoreMap = [6, 5, 4, 3, 2, 1]; // Points for Rank 1-6
+                // New Rule: Rank 1-2=6, Rank 3=5, Rank 4=4, Rank 5-6=2
+                const scoreMap = [6, 6, 5, 4, 2, 2]; // Points for Rank 1-6
 
                 // Add Pundit Scores
                 if (race.j18Likes[0]) {
