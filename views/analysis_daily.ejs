@@ -187,10 +187,18 @@
             }
             
             .chart-container {
-                height: 300px;
+                height: auto;
                 padding: 10px;
             }
-
+            
+            .metric-selector {
+                overflow-x: auto;
+                white-space: nowrap;
+                padding-bottom: 5px;
+                margin-bottom: 10px;
+                -webkit-overflow-scrolling: touch;
+            }
+            
             /* Improve table scrolling hint */
             .table-container::after {
                 content: '← 左右滑動查看更多 →';
@@ -293,7 +301,9 @@
             <button class="metric-btn" onclick="updateChartMetric('t6')">T (Box 6)</button>
             <button class="metric-btn" onclick="updateChartMetric('f46')">F4 (Box 6)</button>
         </div>
-        <canvas id="trendChart"></canvas>
+        <div style="position: relative; height: 300px; width: 100%;">
+            <canvas id="trendChart"></canvas>
+        </div>
     </div>
 
     <div class="table-container">
