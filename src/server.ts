@@ -906,6 +906,30 @@ app.get('/api/analysis/daily-stats', async (req, res) => {
     }
 });
 
+// Custom Composite Analysis
+app.get('/analysis/custom-composite', (req, res) => {
+    res.render('custom_composite');
+});
+
+app.post('/api/analysis/custom-composite-stats', async (req, res) => {
+    try {
+        const { startDate, endDate, sources } = req.body;
+        if (!startDate || !endDate || !sources || !Array.isArray(sources)) {
+            return res.status(400).json({ error: 'Missing required parameters' });
+        }
+
+        const stats = await analysisService.getCustomCompositeStats(
+            startDate,
+            endDate,
+            sources
+        );
+        res.json(stats);
+    } catch (error: any) {
+        console.error('Error fetching custom composite stats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 app.listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}`);
 });

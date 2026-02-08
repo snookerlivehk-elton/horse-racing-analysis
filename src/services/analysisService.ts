@@ -598,4 +598,142 @@ export class AnalysisService {
             };
         });
     }
+
+    // 5. Custom Composite Analysis
+    async getCustomCompositeStats(startDate: string, endDate: string, sources: string[]) {
+        const whereClause: any = {
+            date: { gte: startDate, lte: endDate },
+            j18Payouts: { some: {} }
+        };
+
+        const races = await prisma.race.findMany({
+            where: whereClause,
+            include: {
+                j18Likes: true,
+                j18Trends: true,
+                j18Payouts: true,
+                strategyPicks: true
+            },
+            orderBy: { date: 'desc' }
+        });
+
+        // Map: Date -> StatMetrics
+        const dailyMap = new Map<string, {
+            date: string;
+            count: number;
+            win: { hit: number, revenue: number, cost: number };
+            q: { hit: number, revenue: number, cost: number };
+            t: { hit: number, revenue: number, cost: number };
+            f4: { hit: number, revenue: number, cost: number };
+        }>();
+
+        for (const race of races) {
+            if (!race.j18Payouts[0]) continue;
+            
+            // Initialize Date Entry
+            const dateStr = race.date;
+            if (!dailyMap.has(dateStr)) {
+                dailyMap.set(dateStr, {
+                    date: dateStr,
+                    count: 0,
+                    win: { hit: 0, revenue: 0, cost: 0 },
+                    q: { hit: 0, revenue: 0, cost: 0 },
+                    t: { hit: 0, revenue: 0, cost: 0 },
+                    f4: { hit: 0, revenue: 0, cost: 0 }
+                });
+            }
+            const entry = dailyMap.get(dateStr)!;
+
+            // Parse Results
+            const payouts = race.j18Payouts[0].payouts as unknown as J18PayoutItem[];
+            const { winner } = this.parseResults(payouts);
+            if (!winner) continue;
+
+            // --- Custom Composite Calculation ---
+            const horseScores = new Map<number, number>();
+            const scoreMap = [6, 6, 5, 4, 2, 2]; // Points for Rank 1-6
+
+            for (const source of sources) {
+                let picks: number[] = [];
+
+                if (source === 'pundit') {
+                    if (race.j18Likes[0]) {
+                        picks = race.j18Likes[0].recommendations as unknown as number[];
+                    }
+                } else if (source.startsWith('trend-')) {
+                    const key = source.split('-')[1];
+                    if (race.j18Trends[0]) {
+                        const trends = race.j18Trends[0].trends as unknown as Record<string, string[]>;
+                        if (trends[key]) picks = trends[key].map(Number);
+                    }
+                } else if (source.startsWith('strategy-')) {
+                    const strategyId = source.split('strategy-')[1];
+                    const sp = race.strategyPicks.find(s => s.strategyTestId === strategyId);
+                    if (sp) picks = sp.picks;
+                }
+
+                if (picks && picks.length > 0) {
+                    picks.slice(0, 6).forEach((horse, idx) => {
+                        const current = horseScores.get(horse) || 0;
+                        horseScores.set(horse, current + (scoreMap[idx] || 0));
+                    });
+                }
+            }
+
+            // Determine Final Picks
+            let finalPicks: number[] = [];
+            if (horseScores.size > 0) {
+                finalPicks = Array.from(horseScores.entries())
+                    .sort((a, b) => b[1] - a[1]) // Descending score
+                    .map(e => e[0]);
+            }
+            
+            if (finalPicks.length === 0) continue; // Skip race if no data
+
+            entry.count++;
+
+            // Calculate Rewards
+            const res = this.calculateRaceRewards(payouts, finalPicks);
+
+            // Accumulate Daily
+            entry.win.hit += res.win.hit;
+            entry.win.revenue += res.win.rev;
+            entry.win.cost += res.win.cost;
+
+            entry.q.hit += res.q.hit;
+            entry.q.revenue += res.q.rev;
+            entry.q.cost += res.q.cost;
+
+            entry.t.hit += res.t.hit;
+            entry.t.revenue += res.t.rev;
+            entry.t.cost += res.t.cost;
+
+            entry.f4.hit += res.f4.hit;
+            entry.f4.revenue += res.f4.rev;
+            entry.f4.cost += res.f4.cost;
+        }
+
+        // Format Output
+        const result = Array.from(dailyMap.values()).map(d => {
+            const calc = (m: any) => {
+                const net = m.revenue - m.cost;
+                return {
+                    hits: m.hit,
+                    revenue: m.revenue,
+                    roi: m.cost > 0 ? parseFloat(((net / m.cost) * 100).toFixed(1)) : 0,
+                    rate: d.count > 0 ? parseFloat(((m.hit / d.count) * 100).toFixed(1)) : 0
+                };
+            };
+            return {
+                date: d.date,
+                raceCount: d.count,
+                win: calc(d.win),
+                q: calc(d.q),
+                t: calc(d.t),
+                f4: calc(d.f4)
+            };
+        });
+
+        return result.sort((a, b) => b.date.localeCompare(a.date));
+    }
 }

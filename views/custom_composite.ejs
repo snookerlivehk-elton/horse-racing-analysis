@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自選綜合熱度分析</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-gold: #fbbf24;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --border-color: #404040;
+        }
+
+        body { 
+            font-family: 'Roboto', 'Segoe UI', Tahoma, sans-serif; 
+            padding: 20px; 
+            background-color: var(--bg-dark); 
+            color: var(--text-main);
+            margin: 0;
+        }
+        
+        h1 { color: var(--accent-gold); text-align: center; margin-bottom: 20px; }
+        
+        .nav-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: var(--accent-blue);
+            text-decoration: none;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .nav-link:hover { text-decoration: underline; }
+
+        .control-panel {
+            background: var(--bg-panel);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 0 auto 30px;
+            max-width: 1000px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .source-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            width: 100%;
+        }
+
+        .source-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .source-item label {
+            width: 80px;
+            color: var(--text-muted);
+            text-align: right;
+        }
+
+        select, input[type="date"] {
+            background: #404040;
+            border: 1px solid #555;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 1em;
+            width: 100%;
+        }
+        
+        input[type="date"] {
+            width: auto;
+        }
+
+        button {
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        button:hover { background: #2563eb; }
+
+        .chart-container {
+            background: var(--bg-panel);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 0 auto 30px;
+            max-width: 1200px;
+            height: 400px;
+            border: 1px solid var(--border-color);
+        }
+
+        .table-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        th, td {
+            padding: 12px 10px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.95em;
+        }
+
+        th {
+            background: #333;
+            color: var(--accent-gold);
+            font-weight: bold;
+            white-space: nowrap;
+            position: sticky;
+            z-index: 20;
+            height: 45px;
+            box-sizing: border-box;
+        }
+
+        /* Sticky Headers */
+        thead tr:nth-child(1) th { top: 0; }
+        thead tr:nth-child(2) th { top: 45px; }
+        thead tr:nth-child(1) th[rowspan="2"] { top: 0; height: 90px; z-index: 21; }
+
+        tr:last-child td { border-bottom: none; }
+        tr:hover { background: #383838; }
+
+        .roi-positive { color: var(--accent-green); font-weight: bold; }
+        .roi-negative { color: var(--accent-red); font-weight: bold; }
+        
+        .metric-selector {
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .metric-btn {
+            background: #444;
+            color: #ccc;
+            margin: 0 5px;
+            padding: 5px 15px;
+            font-size: 0.9em;
+        }
+        .metric-btn.active {
+            background: var(--accent-gold);
+            color: #000;
+        }
+
+        .section-border { border-left: 3px solid #666 !important; }
+        .group-alt { background-color: rgba(255, 255, 255, 0.03); }
+
+        /* Sticky Total Row */
+        .total-row td {
+            position: sticky;
+            top: 90px;
+            z-index: 15;
+            background: #374151 !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="nav-link">← 返回首頁</a>
+
+    <h1>🧪 自選綜合熱度分析</h1>
+
+    <div class="control-panel">
+        <div class="control-group">
+            <label>日期範圍:</label>
+            <input type="date" id="startDate" value="2025-01-01">
+            <span>至</span>
+            <input type="date" id="endDate" value="2026-02-01">
+        </div>
+        
+        <div class="source-grid" id="sourceGrid">
+            <!-- Populated by JS -->
+        </div>
+
+        <div class="control-group">
+            <button onclick="fetchData()">開始分析</button>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <div class="metric-selector">
+            圖表顯示: 
+            <button class="metric-btn active" onclick="updateChartMetric('win')">Win (獨贏)</button>
+            <button class="metric-btn" onclick="updateChartMetric('q')">Q (連贏)</button>
+            <button class="metric-btn" onclick="updateChartMetric('t')">T (三重彩)</button>
+            <button class="metric-btn" onclick="updateChartMetric('f4')">F4 (四重彩)</button>
+        </div>
+        <canvas id="trendChart"></canvas>
+    </div>
+
+    <div class="table-container">
+        <h3 style="color: var(--accent-green); margin-bottom: 10px;">📅 每日數據詳情</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th rowspan="2">日期</th>
+                    <th rowspan="2">場數</th>
+                    <th colspan="3" class="section-border">Win (獨贏)</th>
+                    <th colspan="3" class="section-border group-alt">Q (連贏)</th>
+                    <th colspan="3" class="section-border">T (三重彩)</th>
+                    <th colspan="3" class="section-border group-alt">F4 (四重彩)</th>
+                </tr>
+                <tr>
+                    <th class="section-border">命中%</th>
+                    <th>彩金</th>
+                    <th>回報率</th>
+                    <th class="section-border group-alt">命中%</th>
+                    <th class="group-alt">彩金</th>
+                    <th class="group-alt">回報率</th>
+                    <th class="section-border">命中%</th>
+                    <th>彩金</th>
+                    <th>回報率</th>
+                    <th class="section-border group-alt">命中%</th>
+                    <th class="group-alt">彩金</th>
+                    <th class="group-alt">回報率</th>
+                </tr>
+            </thead>
+            <tbody id="dataTable">
+                <!-- Data populated by JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        let currentData = [];
+        let chartInstance = null;
+        let currentMetric = 'win';
+        const BET_COSTS = {
+            win: 20,
+            q: 30,
+            t: 240,
+            f4: 3600
+        };
+
+        // Standard Options
+        const standardOptions = [
+            { value: '', label: '-- 選擇資料來源 --' },
+            { value: 'pundit', label: '👤 名家推介 (J18 Likes)' },
+            { value: 'trend-30', label: '📉 綜合走勢 T-30' },
+            { value: 'trend-15', label: '📉 綜合走勢 T-15' },
+            { value: 'trend-10', label: '📉 綜合走勢 T-10' },
+            { value: 'trend-5', label: '📉 綜合走勢 T-5' },
+            { value: 'trend-4', label: '📉 綜合走勢 T-4' },
+            { value: 'trend-3', label: '📉 綜合走勢 T-3' },
+            { value: 'trend-2', label: '📉 綜合走勢 T-2' },
+            { value: 'trend-1', label: '📉 綜合走勢 T-1' },
+            { value: 'trend-0', label: '📉 綜合走勢 T-0' }
+        ];
+
+        // Init Dates
+        const today = new Date();
+        document.getElementById('endDate').valueAsDate = today;
+        const lastMonth = new Date();
+        lastMonth.setDate(today.getDate() - 30);
+        document.getElementById('startDate').valueAsDate = lastMonth;
+
+        async function init() {
+            // 1. Load Strategies
+            let strategyOptions = [];
+            try {
+                const res = await fetch('/api/strategies');
+                const json = await res.json();
+                if (json.success && json.data.length > 0) {
+                    strategyOptions = json.data.map(s => ({
+                        value: `strategy-${s.id}`,
+                        label: `🧪 ${s.name}`
+                    }));
+                }
+            } catch (e) {
+                console.error('Failed to load strategies', e);
+            }
+
+            // 2. Build 10 Selects
+            const grid = document.getElementById('sourceGrid');
+            const allOptions = [...standardOptions, ...strategyOptions];
+
+            for (let i = 1; i <= 10; i++) {
+                const div = document.createElement('div');
+                div.className = 'source-item';
+                
+                const label = document.createElement('label');
+                label.innerText = `來源 ${i}:`;
+                
+                const select = document.createElement('select');
+                select.id = `source-${i}`;
+                
+                allOptions.forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.label;
+                    select.appendChild(option);
+                });
+
+                // Default selections (mimic default composite if user wants)
+                // Default composite is usually Pundit + T30 + T15 + T10 + T5
+                if (i === 1) select.value = 'pundit';
+                if (i === 2) select.value = 'trend-30';
+                if (i === 3) select.value = 'trend-15';
+                if (i === 4) select.value = 'trend-10';
+                if (i === 5) select.value = 'trend-5';
+
+                div.appendChild(label);
+                div.appendChild(select);
+                grid.appendChild(div);
+            }
+        }
+
+        async function fetchData() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            // Collect Sources
+            const sources = [];
+            for (let i = 1; i <= 10; i++) {
+                const val = document.getElementById(`source-${i}`).value;
+                if (val) sources.push(val);
+            }
+
+            if (sources.length === 0) {
+                alert('請至少選擇一個資料來源');
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/analysis/custom-composite-stats`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ startDate, endDate, sources })
+                });
+                const data = await res.json();
+                
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                    return;
+                }
+
+                currentData = data;
+                renderTable(data);
+                renderChart(data);
+
+            } catch (e) {
+                alert('Fetch failed: ' + e.message);
+            }
+        }
+
+        // --- Shared Render Logic (Same as Daily Analysis) ---
+
+        function formatCurrency(val) {
+            return '$' + Math.floor(val).toLocaleString();
+        }
+
+        function formatRoi(val) {
+            const color = val >= 0 ? '#10b981' : '#ef4444';
+            const sign = val >= 0 ? '+' : '';
+            return `<span style="color:${color}">${sign}${val}%</span>`;
+        }
+
+        function renderTable(data) {
+            const tbody = document.getElementById('dataTable');
+            tbody.innerHTML = '';
+
+            let totalRaces = 0;
+            const totals = {
+                win: { hits: 0, revenue: 0 },
+                q: { hits: 0, revenue: 0 },
+                t: { hits: 0, revenue: 0 },
+                f4: { hits: 0, revenue: 0 }
+            };
+
+            data.forEach(d => {
+                totalRaces += d.raceCount;
+                ['win', 'q', 't', 'f4'].forEach(type => {
+                    totals[type].hits += d[type].hits;
+                    totals[type].revenue += d[type].revenue;
+                });
+            });
+
+            const calcTotalRoi = (type) => {
+                if (totalRaces === 0) return 0;
+                const totalCost = totalRaces * BET_COSTS[type];
+                const net = totals[type].revenue - totalCost;
+                return totalCost > 0 ? (net / totalCost * 100).toFixed(1) : '0.0';
+            };
+
+            const calcTotalRate = (type) => {
+                return totalRaces > 0 ? (totals[type].hits / totalRaces * 100).toFixed(1) : '0.0';
+            };
+
+            if (data.length > 0) {
+                const totalRow = `
+                    <tr class="total-row" style="background: #374151; font-weight: bold; border-bottom: 2px solid #666;">
+                        <td style="color: var(--accent-gold);">總計 (Total)</td>
+                        <td style="color: var(--accent-gold);">${totalRaces}</td>
+                        <td class="section-border" style="color: var(--accent-gold);">${calcTotalRate('win')}%</td>
+                        <td style="color: var(--accent-gold);">${formatCurrency(totals.win.revenue)}</td>
+                        <td>${formatRoi(calcTotalRoi('win'))}</td>
+                        <td class="section-border group-alt" style="color: var(--accent-gold);">${calcTotalRate('q')}%</td>
+                        <td class="group-alt" style="color: var(--accent-gold);">${formatCurrency(totals.q.revenue)}</td>
+                        <td class="group-alt">${formatRoi(calcTotalRoi('q'))}</td>
+                        <td class="section-border" style="color: var(--accent-gold);">${calcTotalRate('t')}%</td>
+                        <td style="color: var(--accent-gold);">${formatCurrency(totals.t.revenue)}</td>
+                        <td>${formatRoi(calcTotalRoi('t'))}</td>
+                        <td class="section-border group-alt" style="color: var(--accent-gold);">${calcTotalRate('f4')}%</td>
+                        <td class="group-alt" style="color: var(--accent-gold);">${formatCurrency(totals.f4.revenue)}</td>
+                        <td class="group-alt">${formatRoi(calcTotalRoi('f4'))}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += totalRow;
+            }
+
+            data.forEach(d => {
+                const row = `
+                    <tr>
+                        <td style="font-weight:bold; color:white;">${d.date}</td>
+                        <td>${d.raceCount}</td>
+                        <td class="section-border">${d.win.rate}%</td>
+                        <td>${formatCurrency(d.win.revenue)}</td>
+                        <td>${formatRoi(d.win.roi)}</td>
+                        <td class="section-border group-alt">${d.q.rate}%</td>
+                        <td class="group-alt">${formatCurrency(d.q.revenue)}</td>
+                        <td class="group-alt">${formatRoi(d.q.roi)}</td>
+                        <td class="section-border">${d.t.rate}%</td>
+                        <td>${formatCurrency(d.t.revenue)}</td>
+                        <td>${formatRoi(d.t.roi)}</td>
+                        <td class="section-border group-alt">${d.f4.rate}%</td>
+                        <td class="group-alt">${formatCurrency(d.f4.revenue)}</td>
+                        <td class="group-alt">${formatRoi(d.f4.roi)}</td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        function updateChartMetric(metric) {
+            currentMetric = metric;
+            document.querySelectorAll('.metric-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            if (currentData.length > 0) renderChart(currentData);
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            const sortedData = [...data].sort((a, b) => new Date(a.date) - new Date(b.date));
+            const labels = sortedData.map(d => d.date.substring(5));
+            const values = sortedData.map(d => d[currentMetric].rate);
+
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `${currentMetric.toUpperCase()} 命中率 (%)`,
+                        data: values,
+                        borderColor: '#fbbf24',
+                        backgroundColor: 'rgba(251, 191, 36, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true,
+                        pointBackgroundColor: '#10b981'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 100,
+                            grid: { color: '#404040' },
+                            ticks: { color: '#a0a0a0' }
+                        },
+                        x: {
+                            grid: { color: '#404040' },
+                            ticks: { color: '#a0a0a0' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#e0e0e0' } },
+                        tooltip: {
+                            callbacks: {
+                                label: (context) => {
+                                    const idx = context.dataIndex;
+                                    const day = sortedData[idx];
+                                    const metric = day[currentMetric];
+                                    return [
+                                        `命中率: ${metric.rate}%`,
+                                        `命中: ${metric.hits}/${day.raceCount}場`,
+                                        `彩金: ${formatCurrency(metric.revenue)}`,
+                                        `ROI: ${metric.roi}%`
+                                    ];
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        init();
+
+    </script>
+</body>
+</html>
