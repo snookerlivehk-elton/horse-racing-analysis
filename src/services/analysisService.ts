@@ -690,6 +690,11 @@ export class AnalysisService {
             q: { hit: number, revenue: number, cost: number };
             t: { hit: number, revenue: number, cost: number };
             f4: { hit: number, revenue: number, cost: number };
+            // Box 6 Metrics
+            win6: { hit: number };
+            q6: { hit: number };
+            t6: { hit: number };
+            f46: { hit: number };
         }>();
 
         for (const race of races) {
