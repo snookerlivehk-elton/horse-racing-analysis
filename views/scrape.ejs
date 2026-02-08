@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HKJC 排位與往績 (Racecard & Performance)</title>
+    <title>HKJC 排位資料更新 (Data Update)</title>
     <style>
         :root {
             --bg-dark: #1e1e1e;
@@ -14,9 +14,6 @@
             --accent-green: #10b981;
             --accent-blue: #3b82f6;
             --border-color: #404040;
-            --table-header-bg: #333333;
-            --table-row-even: #252525;
-            --table-row-odd: #2a2a2a;
         }
 
         body { 
@@ -26,670 +23,211 @@
             color: var(--text-main);
             margin: 0; 
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
 
         h1 { 
             color: var(--accent-gold); 
             text-align: center; 
-            margin: 20px 0 10px; 
-            font-size: 1.5em;
+            margin: 40px 0 20px; 
+            font-size: 1.8em;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
-        .meta-info { 
-            text-align: center; 
-            margin-bottom: 20px; 
-            color: var(--text-muted); 
-            font-size: 0.85em; 
-            border-bottom: 1px solid var(--border-color);
-            padding-bottom: 15px;
-        }
-        
         .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 0 10px;
+            width: 90%;
+            max-width: 600px;
+            background: var(--bg-panel);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            text-align: center;
+            border: 1px solid var(--border-color);
         }
 
-        .btn-bar { display: flex; justify-content: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+        .meta-info { 
+            margin-bottom: 30px; 
+            color: var(--text-muted); 
+            font-size: 0.9em; 
+            line-height: 1.6;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+        }
+
+        .btn-bar { 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+            width: 100%;
+        }
+
         .btn { 
-            padding: 8px 20px; 
-            border-radius: 4px; 
+            padding: 15px; 
+            border-radius: 8px; 
             border: none; 
             cursor: pointer; 
-            font-size: 0.9em; 
+            font-size: 1em; 
             font-weight: 600; 
             transition: all 0.2s; 
             text-transform: uppercase;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
         }
-        .btn-primary { background-color: var(--accent-blue); color: white; }
-        .btn-primary:hover { background-color: #2563eb; }
-        .btn-secondary { background-color: var(--accent-green); color: white; }
-        .btn-secondary:hover { background-color: #059669; }
-        .btn-link { background: none; color: var(--accent-blue); text-decoration: none; padding: 10px; font-size: 0.9em; }
-        .btn-link:hover { text-decoration: underline; color: #60a5fa; }
 
-        .error { color: #f87171; background: rgba(220, 38, 38, 0.1); padding: 10px; border: 1px solid #dc2626; border-radius: 4px; text-align: center; margin-bottom: 15px; }
-        
-        /* Tabs */
-        .tabs { 
-            display: flex; 
-            flex-wrap: nowrap; 
-            overflow-x: auto; 
-            gap: 2px; 
-            margin-bottom: 15px; 
-            padding-bottom: 5px; 
-            background: var(--bg-panel);
-            padding: 5px;
-            border-radius: 4px;
+        .btn-primary { 
+            background-color: var(--accent-blue); 
+            color: white; 
+            box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
         }
-        .tab-btn { 
-            padding: 8px 16px; 
+        .btn-primary:hover { 
+            background-color: #2563eb; 
+            transform: translateY(-2px);
+        }
+        .btn-primary:active { transform: translateY(0); }
+
+        .btn-warning {
+            background-color: var(--accent-gold);
+            color: black;
+        }
+        .btn-warning:hover { background-color: #d97706; }
+
+        .btn-link { 
             background: transparent; 
-            border: none; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            font-weight: 600; 
             color: var(--text-muted); 
-            white-space: nowrap;
-            transition: all 0.2s;
-            flex-shrink: 0;
+            margin-top: 10px;
+            font-size: 0.9em;
         }
-        .tab-btn:hover { background: rgba(255,255,255,0.05); color: white; }
-        .tab-btn.active { 
-            background: var(--accent-gold); 
-            color: #000; 
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        .tab-content { display: none; animation: fadeIn 0.3s ease; }
-        .tab-content.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .btn-link:hover { color: white; text-decoration: underline; }
 
-        /* Racecard Table */
-        .race-card { 
-            background: var(--bg-panel); 
+        .error { 
+            color: #f87171; 
+            background: rgba(220, 38, 38, 0.1); 
+            padding: 15px; 
+            border: 1px solid #dc2626; 
             border-radius: 8px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3); 
-            overflow: hidden; 
+            text-align: left; 
             margin-bottom: 20px; 
-            border: 1px solid var(--border-color);
-        }
-        .race-header { 
-            background: linear-gradient(180deg, #404040 0%, #333 100%); 
-            color: var(--accent-gold); 
-            padding: 12px 15px; 
-            font-weight: bold; 
-            font-size: 1.1em; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            border-bottom: 1px solid var(--border-color);
+            font-size: 0.9em;
         }
         
-        table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px 8px; text-align: center; border-bottom: 1px solid var(--border-color); font-size: 0.9em; }
-        th { 
-            background-color: var(--table-header-bg); 
-            font-weight: 600; 
-            color: var(--text-muted); 
-            text-transform: uppercase;
-            font-size: 0.8em;
-            letter-spacing: 0.5px;
+        .loading {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 8px;
         }
-        tr { background-color: var(--table-row-odd); }
-        tr:nth-child(even) { background-color: var(--table-row-even); }
-        tr:hover { background-color: #383838; }
-        
-        .horse-no { 
-            font-weight: bold; 
-            color: var(--accent-gold); 
-            font-family: 'Roboto Mono', monospace;
-            font-size: 1.1em;
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left: 4px solid var(--accent-blue);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
         }
-        .horse-name { font-weight: bold; color: white; text-align: left; font-size: 1em; }
-        .badge { 
-            display: inline-block; 
-            padding: 1px 5px; 
-            font-size: 0.7em; 
-            border-radius: 2px; 
-            background: #404040; 
-            color: #aaa; 
-            margin-top: 2px;
-            font-family: monospace;
-        }
-        
-        .details-row { display: none; background-color: #222 !important; }
-        .details-row.show { display: table-row; }
-        .details-cell { padding: 15px; text-align: left; border-top: 1px solid var(--accent-blue); }
-        .toggle-details { 
-            cursor: pointer; 
-            color: var(--accent-blue); 
-            font-size: 0.85em; 
-            padding: 2px 8px;
-            border: 1px solid var(--accent-blue);
-            border-radius: 10px;
-            transition: all 0.2s;
-        }
-        .toggle-details:hover { background: var(--accent-blue); color: white; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-        .perf-table { width: 100%; margin-top: 10px; border: 1px solid var(--border-color); background: #1a1a1a; }
-        .perf-table th { background: #333; color: #ccc; border-bottom: 1px solid #444; }
-        .perf-table td { color: #bbb; border-bottom: 1px solid #333; }
-        .perf-table tr:hover { background: #252525; }
-
-        /* Mobile adjustments */
-        @media (max-width: 768px) {
-            th, td { padding: 8px 4px; font-size: 0.8em; }
-            .badge { display: block; width: fit-content; }
-            .btn-bar { flex-direction: column; }
-            .btn { width: 100%; margin-bottom: 5px; }
-            
-            .race-card {
-                overflow-x: auto;
-            }
-            table {
-                min-width: 600px; /* Ensure scroll triggers */
-            }
-            .race-card::after {
-                content: '← 左右滑動查看更多 →';
-                display: block;
-                text-align: center;
-                color: var(--text-muted);
-                font-size: 0.8em;
-                margin-top: 5px;
-                padding-bottom: 5px;
-            }
-            
-            /* Adjust view buttons in race header */
-            .race-header > div:last-child {
-                flex-wrap: wrap;
-                width: 100%;
-            }
-            .view-btn {
-                flex: 1;
-                text-align: center;
-                margin-bottom: 5px;
-            }
+        .status-card {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid var(--accent-green);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            color: var(--accent-green);
+            display: none;
         }
     </style>
 </head>
 <body>
-    <h1>🐎 HKJC 排位與往績 (Racecard & Performance)</h1>
-    <div class="meta-info">
-        Server Version: <%= serverVersion %> |
-        最後更新: <%= lastUpdated ? new Date(lastUpdated).toLocaleString() : '尚未爬取' %>
-        <% if (scrapeResult && scrapeResult.raceDate) { %>
-            | <span style="color: var(--accent-gold); font-weight: bold;">賽事日期: <%= scrapeResult.raceDate %></span>
-        <% } %>
-    </div>
 
-    <% if (scrapeError) { %>
-        <div class="error">錯誤: <%= scrapeError %></div>
-    <% } %>
+    <h1>🐎 資料更新中心 (Data Center)</h1>
 
-    <div class="btn-bar">
-        <button class="btn btn-primary" onclick="triggerScrape()">🔄 立即更新排位表 (Scrape Now)</button>
-        <button class="btn btn-secondary" onclick="triggerSectionalScrape()">⏱️ 補回分段時間 (Sectionals)</button>
-        <button class="btn btn-secondary" style="background-color: #8b5cf6;" onclick="triggerSpeedProScrape()">⚡ 爬取速勢能量 (SpeedPro)</button>
-          <a href="/speedpro" class="btn btn-link" style="background-color: #fbbf24; color: black; border-radius: 4px; text-decoration: none; padding: 8px 20px; font-weight: 600;">📊 查看速勢分析</a>
-          <button class="btn btn-secondary" type="button" onclick="downloadExcel()">📥 一鍵生成 Excel</button>
-        <a href="/" class="btn-link">🏠 返回首頁</a>
-    </div>
-
-    <div id="loading" class="loading" style="display: none;">
-        <div class="spinner"></div>
-        <p>正在從 HKJC 獲取最新資料，請稍候...<br>(Fetching data from HKJC...)</p>
-    </div>
-
-    <% if (scrapeResult && scrapeResult.races && scrapeResult.races.length > 0) { %>
-        
-        <!-- Race Tabs -->
-        <div class="tabs">
-            <% scrapeResult.races.forEach(function(race, index) { %>
-                <div class="tab-btn <%= index === 0 ? 'active' : '' %>" onclick="switchTab(<%= index %>)">
-                    第 <%= race.raceNumber %> 場
+    <div class="container">
+        <div class="meta-info">
+            <div><strong>Server Version:</strong> <%= serverVersion %></div>
+            <div><strong>最後更新 (Last Updated):</strong> <%= lastUpdated ? new Date(lastUpdated).toLocaleString() : '尚未爬取 (No Data)' %></div>
+            <% if (scrapeResult && scrapeResult.raceDate) { %>
+                <div style="margin-top: 10px; font-size: 1.1em; color: var(--accent-gold);">
+                    📅 當前賽事: <%= scrapeResult.raceDate %>
                 </div>
-            <% }); %>
+            <% } %>
         </div>
 
-        <!-- Race Contents -->
-        <% scrapeResult.races.forEach(function(race, index) { %>
-            <div id="race-<%= index %>" class="tab-content <%= index === 0 ? 'active' : '' %>">
-                <div class="race-card">
-                    <div class="race-header">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;">
-                            <div>
-                                <span style="font-size: 1.2em; color: var(--accent-gold);">第 <%= race.raceNumber %> 場</span>
-                                <% if (race.conditions) { %>
-                                    <span style="margin-left: 10px; color: var(--text-main); font-weight: normal; font-size: 1em;">
-                                        <%= race.conditions %>
-                                    </span>
-                                <% } else if (race.class || race.distance) { %>
-                                    <span style="margin-left: 10px; color: var(--text-main); font-weight: normal; font-size: 1em;">
-                                        <%= [race.class, race.distance, race.venue, race.track].filter(Boolean).join(' - ') %>
-                                    </span>
-                                <% } %>
-                            </div>
-                            <span style="font-size: 0.9em; font-weight: normal; color: var(--text-muted);">共 <%= race.horses.length %> 匹</span>
-                        </div>
-                        <div style="margin-top: 10px; display: flex; gap: 10px;">
-                            <button class="view-btn active" onclick="toggleView('<%= index %>', 'standard', this)">排位表</button>
-                            <button class="view-btn" onclick="toggleView('<%= index %>', 'stats', this)">統計資料</button>
-                            <% 
-                                // Robust Date Normalization
-                                let rDate = (scrapeResult.raceDate || "").replace(/\//g, "").replace(/-/g, "");
-                                const chineseDateMatch = (scrapeResult.raceDate || "").match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
-                                if (chineseDateMatch) {
-                                    rDate = chineseDateMatch[1] + chineseDateMatch[2].padStart(2, '0') + chineseDateMatch[3].padStart(2, '0');
-                                }
-
-                                // Robust Venue Normalization
-                                let rVenue = race.venue || "ST";
-                                const venueMap = { "沙田": "ST", "跑馬地": "HV", "Happy Valley": "HV", "Sha Tin": "ST" };
-                                if (venueMap[rVenue]) rVenue = venueMap[rVenue];
-
-                                const rId = `${rDate}-${rVenue}-${race.raceNumber}`;
-                            %>
-                            <button class="view-btn" onclick="toggleView('<%= index %>', 'analysis', this, '<%= rId %>')">操練評分 🚀</button>
-                        </div>
-                    </div>
-                    
-                    <!-- Analysis View -->
-                    <div id="view-analysis-<%= index %>" class="race-view" style="display: none;">
-                        <div id="analysis-content-<%= index %>">
-                            <div style="text-align:center; padding: 20px; color: #aaa;">
-                                點擊上方按鈕載入分析數據...
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Standard View -->
-                    <div id="view-standard-<%= index %>" class="race-view active">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th width="50">馬號</th>
-                                    <th style="text-align: left;">馬名 (編號)</th>
-                                    <th width="60">負磅</th>
-                                    <th>騎師</th>
-                                    <th width="50">檔位</th>
-                                    <th>練馬師</th>
-                                    <th width="50">評分</th>
-                                    <th width="60">+/-</th>
-                                    <th width="80">配備</th>
-                                    <th>往績</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <% race.horses.forEach(function(horse, hIndex) { %>
-                                    <tr>
-                                        <td class="horse-no"><%= horse.number %></td>
-                                        <td style="text-align: left;">
-                                            <div class="horse-name">
-                                                <a href="/horse/<%= horse.horseId %>" style="color: var(--accent-blue); text-decoration: none;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">
-                                                    <%= horse.name %>
-                                                </a>
-                                            </div>
-                                            <div class="badge"><%= horse.horseId %></div>
-                                        </td>
-                                        <td style="text-align:center;"><%= horse.weight || '-' %></td>
-                                        <td><%= horse.jockey %></td>
-                                        <td style="text-align:center;"><%= horse.draw || '-' %></td>
-                                        <td><%= horse.trainer %></td>
-                                        <td style="text-align:center;"><%= horse.rating %></td>
-                                        <td style="text-align:center; color: <%= (horse.ratingChange || '').includes('+') ? '#ef4444' : ((horse.ratingChange || '').includes('-') ? '#10b981' : '#ccc') %>">
-                                            <%= horse.ratingChange || '-' %>
-                                        </td>
-                                        <td style="text-align:center; font-size: 0.85em;"><%= horse.gear || '-' %></td>
-                                        <td>
-                                            <% if (horse.performance && horse.performance.rows.length > 0) { %>
-                                                <span class="toggle-details" onclick="toggleDetails('details-<%= index %>-<%= hIndex %>')">
-                                                    查看 (<%= horse.performance.rows.length %>場)
-                                                </span>
-                                            <% } else { %>
-                                                <span style="color: #ccc;">無紀錄</span>
-                                            <% } %>
-                                        </td>
-                                    </tr>
-                                    <!-- Performance Details Row -->
-                                    <% if (horse.performance && horse.performance.rows.length > 0) { %>
-                                        <tr id="details-<%= index %>-<%= hIndex %>" class="details-row">
-                                            <td colspan="10" class="details-cell">
-                                                <strong><%= horse.name %> 近績紀錄:</strong>
-                                                <table class="perf-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>場次</th><th>名次</th><th>日期</th><th>路程</th><th>場地</th>
-                                                            <th>班次</th><th>騎師</th><th>評分</th><th>獨贏</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        <% horse.performance.rows.slice(0, 6).forEach(function(row) { %>
-                                                            <tr>
-                                                                <!-- Mapping roughly based on standard HKJC scrape columns -->
-                                                                <td><%= row.columns[0] || '-' %></td>
-                                                                <td><%= row.columns[1] || '-' %></td>
-                                                                <td><%= row.columns[2] || '-' %></td>
-                                                                <td><%= row.columns[4] || '-' %></td>
-                                                                <td><%= row.columns[3] || '-' %></td> <!-- Changed from 5 (Going) to 3 (Course) -->
-                                                                <td><%= row.columns[6] || '-' %></td>
-                                                                <td><%= row.columns[10] || '-' %></td>
-                                                                <td><%= row.columns[8] || '-' %></td>
-                                                                <td><%= row.columns[12] || '-' %></td>
-                                                            </tr>
-                                                        <% }); %>
-                                                    </tbody>
-                                                </table>
-                                            </td>
-                                        </tr>
-                                    <% } %>
-                                <% }); %>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- Statistics View -->
-                    <div id="view-stats-<%= index %>" class="race-view" style="display: none; overflow-x: auto;">
-                        <table class="stats-table" style="width: 100%; min-width: 1000px;">
-                            <thead>
-                                <tr>
-                                    <th rowspan="2">馬名</th>
-                                    <th rowspan="2">馬齡/性別</th>
-                                    <th rowspan="2">負磅</th>
-                                    <th rowspan="2">評分</th>
-                                    <th colspan="2">總成績</th>
-                                    <th colspan="3">場地/路程</th>
-                                    <th colspan="1">騎師</th>
-                                    <th colspan="3">場地狀況</th>
-                                </tr>
-                                <tr>
-                                    <th style="font-size: 0.8em;">出道至今</th>
-                                    <th style="font-size: 0.8em;">今季</th>
-                                    <th style="font-size: 0.8em;">同班</th>
-                                    <th style="font-size: 0.8em;">同程</th>
-                                    <th style="font-size: 0.8em;">同場同程</th>
-                                    <th style="font-size: 0.8em;">合作成績</th>
-                                    <th style="font-size: 0.8em;">好地</th>
-                                    <th style="font-size: 0.8em;">黏地</th>
-                                    <th style="font-size: 0.8em;">軟/爛地</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <% race.horses.forEach(function(horse) { %>
-                                    <tr>
-                                        <td style="font-weight: bold;"><%= horse.name %></td>
-                                        <!-- Age/Sex -->
-                                        <td><%= horse.age && horse.sex ? `${horse.age}/${horse.sex}` : (horse.age || horse.sex || '-') %></td>
-                                        <td><%= horse.weight %></td>
-                                        <td><%= horse.rating %></td>
-                                        <td><%= horse.stats ? (horse.stats.lifetime || '-') : '-' %></td>
-                                        <td><%= horse.stats ? (horse.stats.currentSeason || '-') : '-' %></td>
-                                        <td><%= horse.stats ? (horse.stats.thisClass || '-') : '-' %></td>
-                                        <td><%= horse.stats ? (horse.stats.thisDistance || '-') : '-' %></td>
-                                        <td><%= horse.stats ? (horse.stats.thisCourseDistance || '-') : '-' %></td>
-                                        <td><%= horse.stats ? (horse.stats.jockeyPartnership || '-') : '-' %></td>
-                                        <td><%= horse.stats ? (horse.stats.trackGood || '-') : '-' %></td>
-                                        <td><%= horse.stats ? (horse.stats.trackYielding || '-') : '-' %></td>
-                                        <td><%= horse.stats ? (horse.stats.trackSoft || '-') : '-' %></td>
-                                    </tr>
-                                <% }); %>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+        <% if (scrapeError) { %>
+            <div class="error">
+                <strong>⚠️ 上次更新錯誤:</strong><br>
+                <%= scrapeError %>
             </div>
-        <% }); %>
+        <% } %>
 
-    <% } else { %>
-        <div class="card" style="text-align: center; padding: 40px;">
-            <p style="color: #666;">目前沒有資料，請點擊「重新爬取」按鈕開始。</p>
+        <div class="btn-bar">
+            <button class="btn btn-primary" onclick="triggerScrape()">
+                <span>🔄</span> 立即更新資料 (Update Data)
+            </button>
+            
+            <a href="/speedpro" class="btn btn-warning">
+                <span>📊</span> 查看速勢分析 (SpeedPro)
+            </a>
+            
+            <a href="/" class="btn-link">🏠 返回首頁 (Home)</a>
         </div>
-    <% } %>
 
-    <style>
-        .view-btn {
-            padding: 5px 15px;
-            background: #f0f0f0;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9em;
-        }
-        .view-btn.active {
-            background: var(--accent-blue);
-            color: white;
-            border-color: var(--accent-blue);
-        }
-        .stats-table th, .stats-table td {
-            text-align: center;
-            border: 1px solid #ddd;
-            padding: 8px;
-            font-size: 0.9em;
-        }
-        .stats-table th {
-            background-color: #f8f9fa;
-        }
-    </style>
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>正在從 HKJC 獲取最新資料，請稍候...<br><span style="font-size:0.8em; color: #aaa;">(Fetching data from HKJC...)</span></p>
+        </div>
+
+        <div id="status-card" class="status-card">
+            ✅ 更新成功！頁面即將重新整理...
+        </div>
+    </div>
+
     <script>
-        function toggleView(raceIndex, viewType, btn, raceId) {
-            const container = document.getElementById(`race-${raceIndex}`);
-            // Hide all views in this race
-            container.querySelectorAll('.race-view').forEach(el => el.style.display = 'none');
-            // Show selected view
-            const view = document.getElementById(`view-${viewType}-${raceIndex}`);
-            if (view) view.style.display = 'block';
-            
-            // Update buttons
-            const btnContainer = btn.parentElement;
-            btnContainer.querySelectorAll('.view-btn').forEach(el => el.classList.remove('active'));
-            btn.classList.add('active');
-
-            // Load analysis if requested
-            if (viewType === 'analysis' && raceId) {
-                loadAnalysis(raceIndex, raceId);
-            }
-        }
-
-        async function loadAnalysis(raceIndex, raceId) {
-            const container = document.getElementById(`analysis-content-${raceIndex}`);
-            if (!container) return;
-            
-            // If already loaded, don't reload (unless we want refresh)
-            if (container.getAttribute('data-loaded') === 'true') return;
-
-            container.innerHTML = '<div style="text-align:center; padding: 40px;"><div style="font-size: 2em;">⏳</div><div>正在分析晨操與試閘數據...</div></div>';
-            
-            try {
-                const res = await fetch(`/api/analysis/score/${raceId}`);
-                if (!res.ok) {
-                    const err = await res.json();
-                    throw new Error(err.error || '無法載入分析數據');
-                }
-                const data = await res.json();
-                
-                renderAnalysis(container, data.scores);
-                container.setAttribute('data-loaded', 'true');
-            } catch (e) {
-                container.innerHTML = `<div class="error">載入分析失敗: ${e.message}<br><small>請確保已爬取該場賽事且數據庫已同步</small></div>`;
-            }
-        }
-
-        function renderAnalysis(container, scores) {
-            if (!scores || scores.length === 0) {
-                container.innerHTML = '<div style="text-align:center; padding: 20px;">暫無評分數據</div>';
-                return;
-            }
-
-            // scores is array of HorseScore
-            
-            let html = `
-                <div style="margin-bottom: 15px; font-size: 0.9em; color: #aaa; text-align: right;">
-                    * 評分標準: 晨操(60%) + 試閘(40%) | 活躍度加分
-                </div>
-                <table class="stats-table" style="width:100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="background: #333; color: #fff;">
-                            <th width="50">排名</th>
-                            <th width="50">馬號</th>
-                            <th style="text-align:left; padding-left: 10px;">馬匹</th>
-                            <th width="50">檔位</th>
-                            <th width="60">負磅</th>
-                            <th width="50">評分</th>
-                            <th width="60">+/-</th>
-                            <th width="60">配備</th>
-                            <th width="80">操練總分</th>
-                            <th width="80">晨操分</th>
-                            <th width="80">試閘分</th>
-                            <th style="text-align:left;">詳細分析</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
-            
-            scores.forEach((s, i) => {
-                // Color coding
-                let scoreColor = '#e0e0e0';
-                let rowBg = i % 2 === 0 ? 'var(--table-row-even)' : 'var(--table-row-odd)';
-                
-                if (s.totalScore >= 80) scoreColor = '#10b981'; // Green
-                else if (s.totalScore >= 60) scoreColor = '#fbbf24'; // Yellow
-                else if (s.totalScore < 40) scoreColor = '#ef4444'; // Red
-
-                // Icon for top 3
-                let rankIcon = i < 3 ? ['🥇','🥈','🥉'][i] : (i+1);
-
-                // Breakdown details
-                const trackwork = s.breakdown.trackworkScore;
-                const trial = s.breakdown.trialScore;
-                
-                const twDetails = s.breakdown.details?.trackwork?.details || s.breakdown.details?.trackwork || '-';
-                
-                html += `
-                    <tr style="background: ${rowBg}; border-bottom: 1px solid #444;">
-                        <td style="text-align:center; font-weight:bold; font-size: 1.1em;">${rankIcon}</td>
-                        <td style="text-align:center; font-family: monospace; color: var(--accent-gold);">${s.horseNo || '-'}</td>
-                        <td style="text-align:left; padding: 10px;">
-                            <a href="/horse/${s.horseId}" style="color: #fff; text-decoration: none; font-weight: 500;">
-                                ${s.horseName}
-                            </a>
-                        </td>
-                        <td style="text-align:center;">${s.draw || '-'}</td>
-                        <td style="text-align:center;">${s.weight || '-'}</td>
-                        <td style="text-align:center;">${s.rating || '-'}</td>
-                        <td style="text-align:center; color: ${s.ratingChange?.includes('+') ? '#ef4444' : (s.ratingChange?.includes('-') ? '#10b981' : '#ccc')}">${s.ratingChange || '-'}</td>
-                        <td style="text-align:center; font-size: 0.85em;">${s.gear || '-'}</td>
-                        <td style="text-align:center; font-size: 1.2em; font-weight: bold; color: ${scoreColor};">
-                            ${s.totalScore}
-                        </td>
-                        <td style="text-align:center;">${trackwork}</td>
-                        <td style="text-align:center;">${trial}</td>
-                        <td style="text-align:left; font-size: 0.85em; color: #ccc; padding: 8px;">
-                            ${(() => {
-                                const details = s.breakdown?.details || {};
-                                const tw = details.trackwork || {};
-                                const tr = details.trial || {};
-                                
-                                // Handle string fallback
-                                const twIsString = typeof tw === 'string';
-                                const trIsString = typeof tr === 'string';
-                                
-                                const recentTw = Array.isArray(tw.recentFastWork) ? tw.recentFastWork.join(', ') : (tw.recentFastWork || '-');
-                                const twHtml = twIsString 
-                                    ? tw 
-                                    : `<div style="margin-bottom:6px;">
-                                            <span style="color:#9dd7ff;">晨操</span>：總次數 <strong>${tw.totalWorkouts ?? '-'}</strong>，
-                                            快操 <strong>${tw.fastWorkouts ?? '-'}</strong>，
-                                            最近快操 <span style="color:#aaa;">${recentTw || '-'}</span>
-                                       </div>`;
-                                
-                                const trHtml = trIsString 
-                                    ? tr 
-                                    : `<div>
-                                            <span style="color:#ffd08a;">試閘</span>：日期 <strong>${tr.lastTrialDate ?? '-'}</strong>，
-                                            名次 <strong>${tr.rank ?? '-'}</strong>，
-                                            參賽馬數 <strong>${tr.totalHorses ?? '-'}</strong>
-                                       </div>`;
-                                
-                                return twHtml + trHtml;
-                            })()}
-                        </td>
-                    </tr>`;
-            });
-
-            html += `</tbody></table>
-            <div style="margin-top: 20px; padding: 15px; background: #252525; border-radius: 6px; border: 1px solid #404040; color: #bbb; font-size: 0.9em;">
-                <h4 style="margin: 0 0 10px 0; color: var(--accent-gold);">📊 評分規則說明 (Scoring Rules)</h4>
-                <ul style="padding-left: 20px; margin: 0;">
-                    <li style="margin-bottom: 5px;"><strong>操練總分 (Total Score)</strong>: 由晨操評分 (60%) 與 試閘評分 (40%) 加權計算得出。</li>
-                    <li style="margin-bottom: 5px;"><strong>晨操評分 (Trackwork)</strong>: 根據過去 21 天內的晨操次數與強度計算。快操次數越多，且最近有快操記錄者，得分越高。</li>
-                    <li style="margin-bottom: 5px;"><strong>試閘評分 (Barrier Trial)</strong>: 根據最近試閘的排名與表現計算。排名越前，得分越高。</li>
-                    <li>此評分僅供參考，旨在量化馬匹近期的活躍程度與備戰狀態，不代表絕對勝算。</li>
-                </ul>
-            </div>`;
-            container.innerHTML = html;
-        }
-
-        function downloadExcel() {
-            window.location.href = '/scrape-data/excel';
-        }
-
-        function switchTab(index) {
-            // Hide all contents
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            // Remove active class from all tabs
-            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
-            
-            // Show selected
-            document.getElementById('race-' + index).classList.add('active');
-            // Highlight tab
-            document.querySelectorAll('.tab-btn')[index].classList.add('active');
-        }
-
-        function toggleDetails(id) {
-            const row = document.getElementById(id);
-            if (row.style.display === 'table-row') {
-                row.style.display = 'none';
-            } else {
-                row.style.display = 'table-row';
-            }
-        }
-
-        function triggerSpeedProScrape() {
-            if (!confirm('確定要開始爬取速勢能量 (SpeedPro) 數據嗎？這可能需要幾分鐘時間。')) return;
+        function triggerScrape() {
+            // if (!confirm('確定要更新排位表數據嗎？ (Update Racecard Data?)')) return;
             
             const loading = document.getElementById('loading');
-            loading.style.display = 'block';
-            loading.querySelector('p').innerHTML = '正在爬取速勢能量數據 (SpeedPro)...<br>這可能需要 1-2 分鐘，請勿關閉視窗。<br>(Scraping SpeedPro data...)';
+            const btnBar = document.querySelector('.btn-bar');
+            const statusCard = document.getElementById('status-card');
             
-            fetch('/api/scrape/speedpro', { method: 'POST' })
+            loading.style.display = 'block';
+            btnBar.style.opacity = '0.5';
+            btnBar.style.pointerEvents = 'none'; // Disable buttons
+            
+            fetch('/api/scrape-race-data')
                 .then(res => res.json())
                 .then(data => {
                     loading.style.display = 'none';
-                    if (data.success) {
-                        alert('✅ ' + data.message);
+                    btnBar.style.opacity = '1';
+                    btnBar.style.pointerEvents = 'auto';
+
+                    if (data.error) {
+                        alert('❌ 更新失敗 (Update Failed): ' + data.error);
                     } else {
-                        alert('❌ 失敗: ' + data.error);
+                        statusCard.style.display = 'block';
+                        statusCard.innerHTML = `
+                            <strong>✅ 更新成功 (Success)!</strong><br>
+                            📅 賽事日期: ${data.raceDate || 'Unknown'}<br>
+                            🐴 已儲存馬匹: ${data.dbStatus?.saved || 0}
+                        `;
+                        // Reload after a short delay to show the success message
+                        setTimeout(() => {
+                            location.reload();
+                        }, 2000);
                     }
                 })
                 .catch(err => {
                     loading.style.display = 'none';
-                    alert('❌ 請求失敗: ' + err.message);
+                    btnBar.style.opacity = '1';
+                    btnBar.style.pointerEvents = 'auto';
+                    alert('❌ 請求失敗 (Request Failed): ' + err.message);
                 });
-        }
-        
-        // Define missing functions if they don't exist (Backward Compatibility)
-        if (typeof triggerScrape === 'undefined') {
-            window.triggerScrape = function() {
-                alert('功能暫未實作 (Function not implemented)');
-            }
-        }
-        if (typeof triggerSectionalScrape === 'undefined') {
-            window.triggerSectionalScrape = function() {
-                fetch('/api/scrape/sectionals', { method: 'POST' })
-                    .then(res => res.json())
-                    .then(data => alert(data.message))
-                    .catch(e => alert(e.message));
-            }
         }
     </script>
 </body>
