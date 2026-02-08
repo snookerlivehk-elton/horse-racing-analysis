@@ -115,43 +115,45 @@
             border: 1px solid var(--border-color);
         }
 
+        /* Table Styles */
         .table-container {
-            max-width: 1200px;
-            margin: 0 auto;
             overflow-x: auto;
+            background: var(--bg-panel);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            max-height: 800px; /* For vertical scrolling */
+            position: relative;
         }
 
         table {
             width: 100%;
+            min-width: 1600px; /* Ensure horizontal scroll prevents squashing */
             border-collapse: collapse;
-            background: var(--bg-panel);
-            border-radius: 8px;
-            overflow: hidden;
-            margin-bottom: 30px;
         }
 
         th, td {
-            padding: 12px 10px;
+            padding: 10px 6px; /* Reduced padding */
             text-align: center;
             border-bottom: 1px solid var(--border-color);
-            font-size: 0.95em;
+            font-size: 0.9em; /* Slightly smaller font */
+            white-space: nowrap;
         }
 
         th {
-            background: #333;
-            color: var(--accent-gold);
+            background: #374151;
+            color: #e0e0e0;
             font-weight: bold;
-            white-space: nowrap;
             position: sticky;
+            top: 45px; /* Second row stickiness */
             z-index: 20;
-            height: 45px;
-            box-sizing: border-box;
         }
 
-        /* Sticky Headers */
-        thead tr:nth-child(1) th { top: 0; }
-        thead tr:nth-child(2) th { top: 45px; }
-        thead tr:nth-child(1) th[rowspan="2"] { top: 0; height: 90px; z-index: 21; }
+        /* Top Header Row Sticky */
+        thead tr:first-child th {
+            top: 0;
+            height: 45px;
+            z-index: 21; /* Ensure on top */
+        }
 
         tr:last-child td { border-bottom: none; }
         tr:hover { background: #383838; }
@@ -178,12 +180,12 @@
         .section-border { border-left: 3px solid #666 !important; }
         .group-alt { background-color: rgba(255, 255, 255, 0.03); }
 
-        /* Sticky Total Row */
+        /* Sticky Total Row (First row of tbody) */
         .total-row td {
             position: sticky;
-            top: 90px;
+            top: 90px; /* 45px + 45px */
             z-index: 15;
-            background: #374151 !important;
+            background: #374151 !important; /* Ensure opacity */
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         }
     </style>

@@ -92,13 +92,14 @@
         }
 
         .table-container {
-            max-width: 1200px;
             margin: 0 auto;
             overflow-x: auto;
+            width: 100%;
         }
 
         table {
             width: 100%;
+            min-width: 1600px;
             border-collapse: collapse;
             background: var(--bg-panel);
             border-radius: 8px;
@@ -107,10 +108,11 @@
         }
 
         th, td {
-            padding: 12px 10px;
+            padding: 10px 6px;
             text-align: center;
             border-bottom: 1px solid var(--border-color);
-            font-size: 0.95em;
+            font-size: 0.9em;
+            white-space: nowrap;
         }
 
         th {

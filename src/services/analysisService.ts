@@ -704,7 +704,11 @@ export class AnalysisService {
                     win: { hit: 0, revenue: 0, cost: 0 },
                     q: { hit: 0, revenue: 0, cost: 0 },
                     t: { hit: 0, revenue: 0, cost: 0 },
-                    f4: { hit: 0, revenue: 0, cost: 0 }
+                    f4: { hit: 0, revenue: 0, cost: 0 },
+                    win6: { hit: 0 },
+                    q6: { hit: 0 },
+                    t6: { hit: 0 },
+                    f46: { hit: 0 }
                 });
             }
             const entry = dailyMap.get(dateStr)!;
@@ -776,6 +780,11 @@ export class AnalysisService {
             entry.f4.hit += res.f4.hit;
             entry.f4.revenue += res.f4.rev;
             entry.f4.cost += res.f4.cost;
+
+            if (res.win6.hit) entry.win6.hit++;
+            if (res.q6.hit) entry.q6.hit++;
+            if (res.t6.hit) entry.t6.hit++;
+            if (res.f46.hit) entry.f46.hit++;
         }
 
         // Format Output
@@ -789,13 +798,26 @@ export class AnalysisService {
                     rate: d.count > 0 ? parseFloat(((m.hit / d.count) * 100).toFixed(1)) : 0
                 };
             };
+            
+            const calcRate = (metrics: { hit: number }) => {
+                const rate = d.count > 0 ? (metrics.hit / d.count * 100) : 0;
+                return {
+                    hits: metrics.hit,
+                    rate: parseFloat(rate.toFixed(1))
+                };
+            };
+
             return {
                 date: d.date,
                 raceCount: d.count,
                 win: calc(d.win),
                 q: calc(d.q),
                 t: calc(d.t),
-                f4: calc(d.f4)
+                f4: calc(d.f4),
+                win6: calcRate(d.win6),
+                q6: calcRate(d.q6),
+                t6: calcRate(d.t6),
+                f46: calcRate(d.f46)
             };
         });
 
