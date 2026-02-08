@@ -15,6 +15,29 @@
         .card { box-shadow: 0 2px 4px rgba(0,0,0,0.1); border: none; margin-bottom: 20px; }
         .card-header { font-weight: bold; }
         .table th { font-size: 0.9em; text-transform: uppercase; color: #6c757d; }
+
+        @media (max-width: 768px) {
+            .d-flex.justify-content-between {
+                flex-direction: column;
+                align-items: stretch !important;
+                gap: 10px;
+            }
+            .btn-secondary {
+                width: 100%;
+            }
+            .table-responsive::after {
+                content: '← 左右滑動查看更多 →';
+                display: block;
+                text-align: center;
+                color: #6c757d;
+                font-size: 0.8em;
+                margin-top: 5px;
+                padding-bottom: 5px;
+            }
+            .card-body.p-0 {
+                padding: 0;
+            }
+        }
     </style>
 </head>
 <body class="container py-4">
@@ -58,6 +81,7 @@
                 <div class="card-header bg-info text-white">📊 走勢分析 (排名變動)</div>
                 <div class="card-body p-0">
                     <% if (trendAnalysis && trendAnalysis.length > 0) { %>
+                    <div class="table-responsive">
                     <table class="table table-sm table-striped mb-0">
                         <thead class="table-light">
                             <tr>
@@ -94,6 +118,7 @@
                             <% }); %>
                         </tbody>
                     </table>
+                    </div>
                     <% } else { %>
                         <div class="p-3 text-muted text-center">
                             暫無走勢數據<br>
@@ -150,6 +175,7 @@
                 <div class="card-header bg-warning text-dark">💰 資金流向 (聰明錢)</div>
                 <div class="card-body p-0">
                     <% if (fundFlow && fundFlow.length > 0) { %>
+                    <div class="table-responsive">
                     <table class="table table-sm table-striped mb-0">
                         <thead class="table-light">
                             <tr>

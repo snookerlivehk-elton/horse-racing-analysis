@@ -112,11 +112,83 @@
         tr:hover { background: #383838; }
 
         .loading { text-align: center; color: var(--text-muted); padding: 20px; display: none; }
+
+        .top-nav {
+            position: absolute; 
+            top: 20px; 
+            right: 20px; 
+            display: flex; 
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 1200px) {
+            .top-nav {
+                position: static;
+                justify-content: center;
+                margin-bottom: 20px;
+            }
+            h1 { margin-top: 10px; }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            
+            .top-nav {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .nav-link {
+                text-align: center;
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .control-panel {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 15px;
+                gap: 15px;
+            }
+
+            .control-panel > div {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 10px;
+                justify-content: center;
+            }
+            
+            .control-panel button {
+                flex: 1 1 30%; /* Grow to fill space */
+            }
+
+            table {
+                display: block;
+                overflow-x: auto;
+                white-space: nowrap;
+            }
+
+            th, td {
+                padding: 10px 5px;
+                font-size: 0.85em;
+            }
+            
+            /* Table scroll hint */
+            .stats-container::after {
+                content: '← 左右滑動查看更多 →';
+                display: block;
+                text-align: center;
+                color: var(--text-muted);
+                font-size: 0.8em;
+                margin-top: 5px;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <div style="position: absolute; top: 20px; right: 20px; display: flex; gap: 10px;">
+    <div class="top-nav">
         <a href="/speedpro" class="nav-link" style="position: static; background-color: #fbbf24; color: black;">⚡ 速勢能量分析</a>
         <a href="/analysis/speedpro-lab" class="nav-link" style="position: static; background-color: #f59e0b;">🧪 實驗室</a>
         <a href="/scrape-data" class="nav-link" style="position: static; background-color: #8b5cf6;">🛠️ 管理排位表 / 爬蟲</a>

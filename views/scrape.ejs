@@ -179,11 +179,38 @@
         .perf-table tr:hover { background: #252525; }
 
         /* Mobile adjustments */
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
             th, td { padding: 8px 4px; font-size: 0.8em; }
             .badge { display: block; width: fit-content; }
             .btn-bar { flex-direction: column; }
-            .btn { width: 100%; }
+            .btn { width: 100%; margin-bottom: 5px; }
+            
+            .race-card {
+                overflow-x: auto;
+            }
+            table {
+                min-width: 600px; /* Ensure scroll triggers */
+            }
+            .race-card::after {
+                content: '← 左右滑動查看更多 →';
+                display: block;
+                text-align: center;
+                color: var(--text-muted);
+                font-size: 0.8em;
+                margin-top: 5px;
+                padding-bottom: 5px;
+            }
+            
+            /* Adjust view buttons in race header */
+            .race-header > div:last-child {
+                flex-wrap: wrap;
+                width: 100%;
+            }
+            .view-btn {
+                flex: 1;
+                text-align: center;
+                margin-bottom: 5px;
+            }
         }
     </style>
 </head>

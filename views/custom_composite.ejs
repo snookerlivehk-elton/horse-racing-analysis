@@ -188,6 +188,69 @@
             background: #374151 !important; /* Ensure opacity */
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+
+            .nav-link {
+                position: static;
+                margin-bottom: 15px;
+                display: inline-flex;
+            }
+
+            .control-panel {
+                padding: 15px;
+            }
+
+            .source-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .control-group {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .control-group label {
+                text-align: left;
+                margin-bottom: 5px;
+            }
+
+            input[type="date"] {
+                width: 100%;
+                box-sizing: border-box;
+            }
+
+            .source-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+
+            .source-item label {
+                width: 100%;
+                text-align: left;
+                margin-bottom: 2px;
+            }
+            
+            h1 { font-size: 1.5em; margin-top: 10px; }
+            
+            .chart-container {
+                height: 300px;
+                padding: 10px;
+            }
+            
+            .table-container::after {
+                content: '← 左右滑動查看更多 →';
+                display: block;
+                text-align: center;
+                color: var(--text-muted);
+                font-size: 0.8em;
+                margin-top: 5px;
+                padding-bottom: 5px;
+            }
+        }
     </style>
 </head>
 <body>

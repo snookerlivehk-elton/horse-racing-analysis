@@ -72,6 +72,18 @@
             border-radius: 4px;
             padding: 2px 5px;
         }
+
+        @media (max-width: 768px) {
+            .table-responsive::after {
+                content: '← 左右滑動查看更多 →';
+                display: block;
+                text-align: center;
+                color: #6c757d;
+                font-size: 0.8em;
+                margin-top: 5px;
+                padding-bottom: 5px;
+            }
+        }
     </style>
 </head>
 <body>

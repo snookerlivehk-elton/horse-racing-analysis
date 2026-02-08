@@ -98,6 +98,25 @@
             color: var(--text-muted);
             line-height: 1.6;
         }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            
+            .nav-bar {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .nav-btn {
+                text-align: center;
+                width: 100%;
+                box-sizing: border-box;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
