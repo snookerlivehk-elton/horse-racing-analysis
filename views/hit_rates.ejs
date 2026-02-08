@@ -104,10 +104,14 @@
                 <tr>
                     <th width="25%">來源 (Source)</th>
                     <th width="10%">總場數</th>
-                    <th width="15%">獨贏 (Win)<br><span style="font-size:0.8em; color:gray">Top 2 含冠</span></th>
-                    <th width="15%">連贏 (Q)<br><span style="font-size:0.8em; color:gray">Top 3 含冠亞</span></th>
-                    <th width="15%">三重彩 (T)<br><span style="font-size:0.8em; color:gray">Top 4 含冠亞季</span></th>
-                    <th width="20%">四重彩 (F4)<br><span style="font-size:0.8em; color:gray">Top 6 含前四</span></th>
+                    <th width="10%">獨贏 (Win)<br><span style="font-size:0.8em; color:gray">Top 2</span></th>
+                    <th width="10%">連贏 (Q)<br><span style="font-size:0.8em; color:gray">Top 3</span></th>
+                    <th width="10%">三重彩 (T)<br><span style="font-size:0.8em; color:gray">Top 4</span></th>
+                    <th width="10%">四重彩 (F4)<br><span style="font-size:0.8em; color:gray">Top 6</span></th>
+                    <th width="10%" style="background:#2d3748">Win (Box 6)<br><span style="font-size:0.8em; color:gray">6隻互串</span></th>
+                    <th width="10%" style="background:#2d3748">Q (Box 6)<br><span style="font-size:0.8em; color:gray">6隻互串</span></th>
+                    <th width="10%" style="background:#2d3748">T (Box 6)<br><span style="font-size:0.8em; color:gray">6隻互串</span></th>
+                    <th width="10%" style="background:#2d3748">F4 (Box 6)<br><span style="font-size:0.8em; color:gray">6隻互串</span></th>
                 </tr>
             </thead>
             <tbody id="stats-body"></tbody>
@@ -139,6 +143,10 @@
                             <td class="${getColor(stats.q.rate)}">${stats.q.rate}% <span style="font-size:0.8em;color:#666">(${stats.q.hits})</span></td>
                             <td class="${getColor(stats.t.rate)}">${stats.t.rate}% <span style="font-size:0.8em;color:#666">(${stats.t.hits})</span></td>
                             <td class="${getColor(stats.f4.rate)}">${stats.f4.rate}% <span style="font-size:0.8em;color:#666">(${stats.f4.hits})</span></td>
+                            <td style="background:#2d3748; color:#fbbf24; font-weight:bold;">${stats.win6 ? stats.win6.rate : 0}% <span style="font-size:0.8em;color:#aaa">(${stats.win6 ? stats.win6.hits : 0})</span></td>
+                            <td style="background:#2d3748; color:#fbbf24; font-weight:bold;">${stats.q6 ? stats.q6.rate : 0}% <span style="font-size:0.8em;color:#aaa">(${stats.q6 ? stats.q6.hits : 0})</span></td>
+                            <td style="background:#2d3748; color:#fbbf24; font-weight:bold;">${stats.t6 ? stats.t6.rate : 0}% <span style="font-size:0.8em;color:#aaa">(${stats.t6 ? stats.t6.hits : 0})</span></td>
+                            <td style="background:#2d3748; color:#fbbf24; font-weight:bold;">${stats.f46 ? stats.f46.rate : 0}% <span style="font-size:0.8em;color:#aaa">(${stats.f46 ? stats.f46.hits : 0})</span></td>
                         `;
                         tbody.appendChild(tr);
                     });
