@@ -42,7 +42,7 @@ app.use((req, res, next) => {
 
 // Start Scheduler
 startScheduler();
-const VERSION = "1.6.9"; // Bump version to force update & confirm deployment
+const VERSION = "1.7.0"; // Bump version for SpeedPro Lab & Custom Composite enhancements
 
 let lastScrapeResult: ScrapeResult | null = null;
 let lastScrapeError: string | null = null;
