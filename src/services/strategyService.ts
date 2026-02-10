@@ -35,6 +35,61 @@ export class StrategyService {
     }
 
     /**
+     * Update an existing strategy by appending/updating picks
+     */
+    async updateStrategy(id: string, picks: StrategyPickInput[]) {
+        try {
+            // Use transaction to ensure consistency
+            await prisma.$transaction(async (tx) => {
+                for (const p of picks) {
+                    await tx.strategyPick.upsert({
+                        where: {
+                            strategyTestId_raceId: {
+                                strategyTestId: id,
+                                raceId: p.raceId
+                            }
+                        },
+                        update: {
+                            picks: p.picks
+                        },
+                        create: {
+                            strategyTestId: id,
+                            raceId: p.raceId,
+                            picks: p.picks
+                        }
+                    });
+                }
+            });
+            return { success: true, message: 'Strategy updated successfully' };
+        } catch (error: any) {
+            console.error('Error updating strategy:', error);
+            throw new Error('Failed to update strategy: ' + error.message);
+        }
+    }
+
+    /**
+     * Delete a strategy and its picks
+     */
+    async deleteStrategy(id: string) {
+        try {
+            // Cascade delete handles picks usually, but explicit is safer if not configured
+            // Prisma schema doesn't show onDelete: Cascade, so we delete picks first
+            await prisma.strategyPick.deleteMany({
+                where: { strategyTestId: id }
+            });
+            
+            await prisma.strategyTest.delete({
+                where: { id }
+            });
+            
+            return { success: true };
+        } catch (error: any) {
+            console.error('Error deleting strategy:', error);
+            throw new Error('Failed to delete strategy: ' + error.message);
+        }
+    }
+
+    /**
      * Get all strategies
      */
     async getAllStrategies() {

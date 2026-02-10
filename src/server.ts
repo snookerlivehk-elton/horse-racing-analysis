@@ -685,17 +685,38 @@ app.get('/analysis/speedpro-lab', (req, res) => {
 
 app.post('/api/strategies', async (req, res) => {
     try {
-        const { name, criteria, picks } = req.body;
-        if (!name || !picks || !Array.isArray(picks)) {
-            return res.status(400).json({ success: false, message: 'Invalid input' });
-        }
-        // picks comes as [{ raceId: string, picks: number[] }, ...]
-        const criteriaStr = typeof criteria === 'object' ? JSON.stringify(criteria) : String(criteria);
+        const { id, name, criteria, picks } = req.body;
         
-        const result = await strategyService.saveStrategy(name, criteriaStr, picks);
+        if (!picks || !Array.isArray(picks)) {
+            return res.status(400).json({ success: false, message: 'Invalid picks data' });
+        }
+
+        if (id) {
+            // Update existing strategy
+            const result = await strategyService.updateStrategy(id, picks);
+            res.json(result);
+        } else {
+            // Create new strategy
+            if (!name) {
+                return res.status(400).json({ success: false, message: 'Name is required for new strategy' });
+            }
+            const criteriaStr = typeof criteria === 'object' ? JSON.stringify(criteria) : String(criteria);
+            const result = await strategyService.saveStrategy(name, criteriaStr, picks);
+            res.json(result);
+        }
+    } catch (error: any) {
+        console.error('Error saving/updating strategy:', error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+app.delete('/api/strategies/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await strategyService.deleteStrategy(id);
         res.json(result);
     } catch (error: any) {
-        console.error('Error saving strategy:', error);
+        console.error('Error deleting strategy:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 });

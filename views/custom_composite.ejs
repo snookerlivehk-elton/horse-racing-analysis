@@ -61,22 +61,33 @@
         }
 
         .source-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
             width: 100%;
+            justify-content: center;
         }
 
-        .source-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
+        .source-btn {
+            background: #404040;
+            color: #ccc;
+            border: 1px solid #555;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            user-select: none;
         }
-        
-        .source-item label {
-            width: 80px;
-            color: var(--text-muted);
-            text-align: right;
+
+        .source-btn:hover {
+            background: #505050;
+        }
+
+        .source-btn.active {
+            background: var(--accent-gold);
+            color: #000;
+            border-color: var(--accent-gold);
+            font-weight: bold;
         }
 
         select, input[type="date"] {
@@ -203,8 +214,7 @@
             }
 
             .source-grid {
-                grid-template-columns: 1fr;
-                gap: 10px;
+                justify-content: flex-start;
             }
 
             .control-group {
@@ -220,18 +230,6 @@
             input[type="date"] {
                 width: 100%;
                 box-sizing: border-box;
-            }
-
-            .source-item {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 5px;
-            }
-
-            .source-item label {
-                width: 100%;
-                text-align: left;
-                margin-bottom: 2px;
             }
             
             h1 { font-size: 1.5em; margin-top: 10px; }
@@ -378,39 +376,32 @@
                 console.error('Failed to load strategies', e);
             }
 
-            // 2. Build 10 Selects
+            // 2. Build Buttons
             const grid = document.getElementById('sourceGrid');
             const allOptions = [...standardOptions, ...strategyOptions];
+            
+            // Remove empty option if it exists
+            const validOptions = allOptions.filter(o => o.value !== '');
 
-            for (let i = 1; i <= 10; i++) {
-                const div = document.createElement('div');
-                div.className = 'source-item';
-                
-                const label = document.createElement('label');
-                label.innerText = `來源 ${i}:`;
-                
-                const select = document.createElement('select');
-                select.id = `source-${i}`;
-                
-                allOptions.forEach(opt => {
-                    const option = document.createElement('option');
-                    option.value = opt.value;
-                    option.textContent = opt.label;
-                    select.appendChild(option);
-                });
+            // Default selected values
+            const defaultSelected = ['pundit', 'trend-30', 'trend-15', 'trend-10', 'trend-5'];
 
-                // Default selections (mimic default composite if user wants)
-                // Default composite is usually Pundit + T30 + T15 + T10 + T5
-                if (i === 1) select.value = 'pundit';
-                if (i === 2) select.value = 'trend-30';
-                if (i === 3) select.value = 'trend-15';
-                if (i === 4) select.value = 'trend-10';
-                if (i === 5) select.value = 'trend-5';
-
-                div.appendChild(label);
-                div.appendChild(select);
-                grid.appendChild(div);
-            }
+            validOptions.forEach(opt => {
+                const btn = document.createElement('div');
+                btn.className = 'source-btn';
+                btn.textContent = opt.label;
+                btn.dataset.value = opt.value;
+                
+                if (defaultSelected.includes(opt.value)) {
+                    btn.classList.add('active');
+                }
+                
+                btn.onclick = () => {
+                    btn.classList.toggle('active');
+                };
+                
+                grid.appendChild(btn);
+            });
         }
 
         async function fetchData() {
@@ -418,11 +409,8 @@
             const endDate = document.getElementById('endDate').value;
             
             // Collect Sources
-            const sources = [];
-            for (let i = 1; i <= 10; i++) {
-                const val = document.getElementById(`source-${i}`).value;
-                if (val) sources.push(val);
-            }
+            const sources = Array.from(document.querySelectorAll('.source-btn.active'))
+                .map(btn => btn.dataset.value);
 
             if (sources.length === 0) {
                 alert('請至少選擇一個資料來源');

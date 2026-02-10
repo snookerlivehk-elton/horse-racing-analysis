@@ -314,9 +314,18 @@
 
     <!-- Lab Control Panel -->
     <div class="control-panel lab-panel">
-        <div style="display: flex; gap: 15px; align-items: center; width: 100%; justify-content: center;">
-            <label>🧪 策略名稱:</label>
-            <input type="text" id="strategyName" placeholder="例如: 狀態優先_v1" style="width: 250px;">
+        <div style="display: flex; gap: 15px; align-items: center; width: 100%; justify-content: center; flex-wrap: wrap;">
+            <label>🧪 儲存目標:</label>
+            <select id="strategySelect" onchange="toggleStrategyInput()" style="padding: 8px; border-radius: 4px; background: #404040; color: white; border: 1px solid #555;">
+                <option value="new">-- 建立新策略 --</option>
+            </select>
+
+            <input type="text" id="strategyName" placeholder="例如: 狀態優先_v1" style="width: 250px; padding: 8px; border-radius: 4px; border: 1px solid #555; background: #333; color: white;">
+            
+            <button id="btnDelete" onclick="deleteStrategy()" style="display: none; background-color: var(--accent-red); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer;">
+                刪除策略
+            </button>
+
             <button onclick="generatePreview()" class="btn-lab">一鍵生成預覽</button>
         </div>
     </div>
@@ -347,6 +356,7 @@
         let generatedPicks = [];
 
         document.addEventListener('DOMContentLoaded', async () => {
+            loadStrategies();
             // Fetch available dates first
             try {
                 const response = await fetch('/api/speedpro/dates');
@@ -558,10 +568,49 @@
 
         // --- Lab Functions ---
 
+        async function loadStrategies() {
+            try {
+                const res = await fetch('/api/strategies');
+                const json = await res.json();
+                if (json.success) {
+                    const select = document.getElementById('strategySelect');
+                    // Clear existing (keep first)
+                    while (select.options.length > 1) {
+                        select.remove(1);
+                    }
+                    
+                    json.data.forEach(s => {
+                        const option = document.createElement('option');
+                        option.value = s.id;
+                        option.textContent = `${s.name} (已存 ${s._count.picks} 場)`;
+                        select.appendChild(option);
+                    });
+                }
+            } catch (e) {
+                console.error('Failed to load strategies', e);
+            }
+        }
+
+        function toggleStrategyInput() {
+            const select = document.getElementById('strategySelect');
+            const nameInput = document.getElementById('strategyName');
+            const deleteBtn = document.getElementById('btnDelete');
+            
+            if (select.value === 'new') {
+                nameInput.style.display = 'block';
+                deleteBtn.style.display = 'none';
+            } else {
+                nameInput.style.display = 'none';
+                deleteBtn.style.display = 'block';
+            }
+        }
+
         function generatePreview() {
+            const select = document.getElementById('strategySelect');
             const name = document.getElementById('strategyName').value;
-            if (!name) {
-                alert('請輸入策略名稱');
+            
+            if (select.value === 'new' && !name) {
+                alert('請輸入新策略名稱');
                 return;
             }
 
@@ -611,6 +660,7 @@
         }
 
         async function saveStrategy() {
+            const select = document.getElementById('strategySelect');
             const name = document.getElementById('strategyName').value;
             const sort1 = document.getElementById('sort1').value;
             const sort2 = document.getElementById('sort2').value;
@@ -621,13 +671,18 @@
             };
 
             const payload = {
-                name: name,
                 criteria: criteria,
                 picks: generatedPicks.map(p => ({
                     raceId: p.raceId,
                     picks: p.picks
                 }))
             };
+
+            if (select.value !== 'new') {
+                payload.id = select.value;
+            } else {
+                payload.name = name;
+            }
 
             try {
                 const btn = document.querySelector('.btn-save');
@@ -646,6 +701,11 @@
                 if (result.success) {
                     alert('策略已成功儲存！');
                     closePreview();
+                    loadStrategies(); // Refresh list
+                    if (select.value === 'new') {
+                        // Reset to new
+                        document.getElementById('strategyName').value = '';
+                    }
                 } else {
                     alert('儲存失敗: ' + result.message);
                 }
@@ -655,6 +715,33 @@
             } catch (error) {
                 alert('儲存錯誤: ' + error.message);
                 document.querySelector('.btn-save').disabled = false;
+            }
+        }
+
+        async function deleteStrategy() {
+            const select = document.getElementById('strategySelect');
+            const id = select.value;
+            if (id === 'new') return;
+
+            const name = select.options[select.selectedIndex].text;
+            if (!confirm(`確定要刪除策略 "${name}" 嗎？此操作無法復原。`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`/api/strategies/${id}`, { method: 'DELETE' });
+                const json = await res.json();
+                
+                if (json.success) {
+                    alert('策略已刪除');
+                    select.value = 'new';
+                    toggleStrategyInput();
+                    loadStrategies();
+                } else {
+                    alert('刪除失敗: ' + json.message);
+                }
+            } catch (e) {
+                alert('刪除錯誤: ' + e.message);
             }
         }
     </script>
