@@ -15,11 +15,13 @@ import { calculateOddsDrops, calculateFundFlow, calculatePunditPerf } from './se
 import { AnalysisService } from './services/analysisService';
 import { SpeedProScraper } from './services/speedProScraper';
 import { StrategyService } from './services/strategyService';
+import { ParlayService } from './services/parlayService';
 
 const app = express();
 const analysisService = new AnalysisService();
 const speedProScraper = new SpeedProScraper();
 const strategyService = new StrategyService();
+const parlayService = new ParlayService();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json()); // Enable JSON body parsing
@@ -1061,6 +1063,27 @@ app.post('/api/analysis/custom-composite-stats', async (req, res) => {
         res.json(stats);
     } catch (error: any) {
         console.error('Error fetching custom composite stats:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+app.post('/api/simulate/parlay', async (req, res) => {
+    try {
+        const { startDate, endDate, source, pickTopK, legs, mode } = req.body;
+        if (!startDate || !endDate || !source || !pickTopK || !legs) {
+            return res.status(400).json({ error: 'Missing required parameters' });
+        }
+        const result = await parlayService.simulateParlay({
+            startDate,
+            endDate,
+            source,
+            pickTopK,
+            legs,
+            mode
+        });
+        res.json(result);
+    } catch (error: any) {
+        console.error('Parlay simulate error:', error);
         res.status(500).json({ error: error.message });
     }
 });

@@ -213,6 +213,47 @@
         </div>
     </div>
 
+    <div class="stats-container" style="margin-bottom: 20px;">
+        <div class="section-title">🎯 過關模擬</div>
+        <div style="background: #2d2d2d; padding: 15px; border-radius: 8px; border: 1px solid #444; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+            <div>
+                <label>起始日期</label>
+                <input type="date" id="parlayStart">
+            </div>
+            <div>
+                <label>結束日期</label>
+                <input type="date" id="parlayEnd">
+            </div>
+            <div>
+                <label>來源</label>
+                <select id="parlaySource" style="background:#404040; color:white; border:1px solid #555; padding:8px; border-radius:4px;">
+                    <option value="pundit">名家推介</option>
+                    <option value="trend-30">綜合走勢 T-30</option>
+                    <option value="trend-15">綜合走勢 T-15</option>
+                    <option value="trend-10">綜合走勢 T-10</option>
+                    <option value="trend-5">綜合走勢 T-5</option>
+                    <option value="composite">綜合熱度</option>
+                </select>
+            </div>
+            <div>
+                <label>TopK</label>
+                <select id="parlayTop" style="background:#404040; color:white; border:1px solid #555; padding:8px; border-radius:4px;">
+                    <option value="1">Top-1</option>
+                    <option value="2">Top-2</option>
+                </select>
+            </div>
+            <div>
+                <label>腿數</label>
+                <select id="parlayLegs" style="background:#404040; color:white; border:1px solid #555; padding:8px; border-radius:4px;">
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                </select>
+            </div>
+            <button onclick="runParlay()">開始模擬</button>
+        </div>
+        <div id="parlayResult" style="margin-top: 10px; background:#2d2d2d; padding: 15px; border-radius: 8px; border:1px solid #444; display:none;"></div>
+    </div>
     <div id="loading" class="loading">正在分析數據，請稍候...</div>
 
     <div id="results" class="stats-container" style="display: none;">
@@ -331,6 +372,48 @@
     </div>
 
     <script>
+        (function initParlayDates(){
+            const today = new Date().toISOString().split('T')[0];
+            const d = new Date();
+            d.setDate(d.getDate() - 30);
+            const last = d.toISOString().split('T')[0];
+            document.getElementById('parlayEnd').value = today;
+            document.getElementById('parlayStart').value = last;
+        })();
+
+        async function runParlay() {
+            const startDate = document.getElementById('parlayStart').value;
+            const endDate = document.getElementById('parlayEnd').value;
+            const source = document.getElementById('parlaySource').value;
+            const pickTopK = parseInt(document.getElementById('parlayTop').value, 10);
+            const legs = parseInt(document.getElementById('parlayLegs').value, 10);
+            const body = { startDate, endDate, source, pickTopK, legs, mode: 'win' };
+            const res = await fetch('/api/simulate/parlay', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json();
+            const el = document.getElementById('parlayResult');
+            if (data.error) {
+                el.style.display = 'block';
+                el.innerHTML = `<div style="color:#ef4444;">${data.error}</div>`;
+                return;
+            }
+            const pct = data.totalChains > 0 ? ((data.hitChains / data.totalChains) * 100).toFixed(1) : '0.0';
+            const roi = data.roiPct.toFixed ? data.roiPct.toFixed(1) : data.roiPct;
+            const netColor = data.netProfit >= 0 ? '#10b981' : '#ef4444';
+            el.style.display = 'block';
+            el.innerHTML = `
+                <div style="display:flex; gap:20px; flex-wrap:wrap;">
+                    <div>樣本: ${data.totalChains}</div>
+                    <div>命中: ${data.hitChains}</div>
+                    <div>命中率: <span style="color:#fbbf24; font-weight:bold;">${pct}%</span></div>
+                    <div>ROI: ${roi}%</div>
+                    <div>淨盈虧: <span style="color:${netColor}; font-weight:bold;">$${Math.floor(data.netProfit).toLocaleString()}</span></div>
+                </div>
+            `;
+        }
         async function fetchStats(period) {
             const startDateStr = document.getElementById('startDate').value;
             if (!startDateStr) {
