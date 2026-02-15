@@ -295,26 +295,8 @@
         }
 
         .day-source-bar {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
             margin-top: 4px;
             margin-bottom: 10px;
-        }
-        .day-source-btn {
-            background: #444;
-            color: #ccc;
-            border-radius: 4px;
-            padding: 4px 10px;
-            font-size: 0.8em;
-            cursor: pointer;
-            border: 1px solid #555;
-        }
-        .day-source-btn.active {
-            background: var(--accent-gold);
-            color: #000;
-            border-color: var(--accent-gold);
-            font-weight: bold;
         }
 
     </style>
@@ -616,32 +598,26 @@
             { value: 'trend-5', label: 'T-5' },
             { value: 'composite', label: '綜合熱度' }
         ];
-        let dayDetailActiveSources = new Set(DAY_DETAIL_SOURCES.map(s => s.value));
+        let dayDetailSource = 'pundit';
         let dayDetailRows = [];
 
         function renderDaySourceBar() {
             const bar = document.getElementById('daySourceBar');
             bar.innerHTML = '';
+            const select = document.createElement('select');
+            select.id = 'daySourceSelect';
             DAY_DETAIL_SOURCES.forEach(src => {
-                const btn = document.createElement('div');
-                btn.className = 'day-source-btn';
-                if (dayDetailActiveSources.has(src.value)) btn.classList.add('active');
-                btn.textContent = src.label;
-                btn.onclick = () => {
-                    if (dayDetailActiveSources.has(src.value)) {
-                        dayDetailActiveSources.delete(src.value);
-                    } else {
-                        dayDetailActiveSources.add(src.value);
-                    }
-                    // 至少保留一個來源
-                    if (dayDetailActiveSources.size === 0) {
-                        dayDetailActiveSources.add(src.value);
-                    }
-                    renderDaySourceBar();
-                    renderDayDetailTable();
-                };
-                bar.appendChild(btn);
+                const opt = document.createElement('option');
+                opt.value = src.value;
+                opt.textContent = src.label;
+                if (src.value === dayDetailSource) opt.selected = true;
+                select.appendChild(opt);
             });
+            select.onchange = () => {
+                dayDetailSource = select.value;
+                renderDayDetailTable();
+            };
+            bar.appendChild(select);
         }
 
         function renderDayDetailTable() {
@@ -650,21 +626,19 @@
             head.innerHTML = '';
             body.innerHTML = '';
 
-            const active = Array.from(dayDetailActiveSources);
+            const srcCfg = DAY_DETAIL_SOURCES.find(s => s.value === dayDetailSource) || DAY_DETAIL_SOURCES[0];
+            const label = srcCfg.label;
             const trHead = document.createElement('tr');
             const thRace = document.createElement('th');
             thRace.textContent = '場次';
             trHead.appendChild(thRace);
 
-            active.forEach((src, idx) => {
-                const label = DAY_DETAIL_SOURCES.find(s => s.value === src)?.label || src;
-                ['Win', 'Q', 'T', 'F4'].forEach((k, kIdx) => {
-                    const th = document.createElement('th');
-                    th.textContent = `${label} ${k}`;
-                    if (kIdx === 0) th.classList.add('section-border');
-                    if ((idx + kIdx) % 2 === 1) th.classList.add('group-alt');
-                    trHead.appendChild(th);
-                });
+            ['Win', 'Q', 'T', 'F4'].forEach((k, idx) => {
+                const th = document.createElement('th');
+                th.textContent = `${label} ${k}`;
+                if (idx === 0) th.classList.add('section-border');
+                if (idx % 2 === 1) th.classList.add('group-alt');
+                trHead.appendChild(th);
             });
             head.appendChild(trHead);
 
@@ -674,23 +648,21 @@
                 tdRace.textContent = row.raceNo;
                 tr.appendChild(tdRace);
 
-                active.forEach((src, idx) => {
-                    const m = row.metrics[src];
-                    ['win','q','t','f4'].forEach((key, kIdx) => {
-                        const td = document.createElement('td');
-                        if (!m) {
-                            td.textContent = '-';
-                        } else {
-                            const metric = m[key];
-                            const hitMark = metric.hit ? '✓' : '×';
-                            const color = metric.hit ? '#10b981' : '#ef4444';
-                            const rev = Math.floor(metric.revenue || 0).toLocaleString();
-                            td.innerHTML = `<span style="color:${color}; font-weight:bold;">${hitMark}</span> / $${rev}`;
-                        }
-                        if (kIdx === 0) td.classList.add('section-border');
-                        if ((idx + kIdx) % 2 === 1) td.classList.add('group-alt');
-                        tr.appendChild(td);
-                    });
+                const m = row.metrics[dayDetailSource];
+                ['win','q','t','f4'].forEach((key, idx) => {
+                    const td = document.createElement('td');
+                    if (!m) {
+                        td.textContent = '-';
+                    } else {
+                        const metric = m[key];
+                        const hitMark = metric.hit ? '✓' : '×';
+                        const color = metric.hit ? '#10b981' : '#ef4444';
+                        const rev = Math.floor(metric.revenue || 0).toLocaleString();
+                        td.innerHTML = `<span style="color:${color}; font-weight:bold;">${hitMark}</span> / $${rev}`;
+                    }
+                    if (idx === 0) td.classList.add('section-border');
+                    if (idx % 2 === 1) td.classList.add('group-alt');
+                    tr.appendChild(td);
                 });
                 body.appendChild(tr);
             });

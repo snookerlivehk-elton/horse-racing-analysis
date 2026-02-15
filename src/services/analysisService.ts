@@ -110,10 +110,10 @@ export class AnalysisService {
 
                 const res = this.calculateRaceRewards(payouts, picks);
                 const calc = (m: any) => {
-                    const net = m.revenue - m.cost;
+                    const net = m.rev - m.cost;
                     return {
                         hit: m.hit,
-                        revenue: m.revenue,
+                        revenue: m.rev,
                         cost: m.cost,
                         roi: m.cost > 0 ? parseFloat(((net / m.cost) * 100).toFixed(1)) : 0
                     };
