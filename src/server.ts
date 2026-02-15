@@ -1065,25 +1065,6 @@ app.post('/api/analysis/custom-composite-stats', async (req, res) => {
     }
 });
 
-app.get('/analysis/day-detail', (req, res) => {
-    res.render('day_detail');
-});
-
-app.get('/api/analysis/available-dates', async (req, res) => {
-    try {
-        const races = await prisma.race.findMany({
-            where: { j18Payouts: { some: {} } },
-            select: { date: true },
-            orderBy: { date: 'desc' }
-        });
-        const set = new Set<string>();
-        races.forEach(r => set.add(r.date));
-        res.json({ success: true, dates: Array.from(set) });
-    } catch (e: any) {
-        res.status(500).json({ success: false, error: e.message });
-    }
-});
-
 app.post('/api/analysis/day-detail-stats', async (req, res) => {
     try {
         const { date, sources } = req.body;

@@ -102,7 +102,13 @@ export class AnalysisService {
                     const sp = (race.strategyPicks || []).find((s: any) => s.strategyTestId === id);
                     if (sp) picks = sp.picks;
                 }
-                const res = this.calculateRaceRewards(payouts, picks || []);
+
+                if (!picks || picks.length === 0) {
+                    row.metrics[source] = null;
+                    continue;
+                }
+
+                const res = this.calculateRaceRewards(payouts, picks);
                 const calc = (m: any) => {
                     const net = m.revenue - m.cost;
                     return {

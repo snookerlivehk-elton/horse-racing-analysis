@@ -253,6 +253,47 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         }
 
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal-panel {
+            background: var(--bg-panel);
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            max-width: 1100px;
+            width: 95%;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-body {
+            padding: 10px 16px 16px;
+            overflow: auto;
+        }
+        .modal-close {
+            cursor: pointer;
+            color: var(--text-muted);
+            font-size: 1.2em;
+        }
+        .date-link {
+            color: var(--accent-blue);
+            text-decoration: underline;
+            cursor: pointer;
+        }
+
     </style>
 </head>
 <body>
@@ -339,9 +380,28 @@
                 </tr>
             </thead>
             <tbody id="dataTable">
-                <!-- Data populated by JS -->
             </tbody>
         </table>
+    </div>
+
+    <div id="dayDetailModal" class="modal-backdrop">
+        <div class="modal-panel">
+            <div class="modal-header">
+                <div id="dayDetailTitle">賽馬日詳細</div>
+                <div class="modal-close" onclick="closeDayDetail()">✕</div>
+            </div>
+            <div class="modal-body">
+                <div style="font-size:0.85em; color:var(--text-muted); margin-bottom:6px;">
+                    數據來源：名家推介、T-30、T-15、T-10、T-5、綜合熱度
+                </div>
+                <div class="table-container" style="margin-top:5px;">
+                    <table style="min-width: 900px;">
+                        <thead id="dayDetailHead"></thead>
+                        <tbody id="dayDetailBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -488,7 +548,9 @@
             data.forEach(d => {
                 const row = `
                     <tr>
-                        <td style="font-weight:bold; color:white;">${d.date}</td>
+                        <td style="font-weight:bold; color:white;">
+                            <span class="date-link" onclick="openDayDetail('${d.date}')">${d.date}</span>
+                        </td>
                         <td>${d.raceCount}</td>
                         
                         <!-- Win -->
@@ -520,6 +582,68 @@
                 `;
                 tbody.innerHTML += row;
             });
+        }
+
+        async function openDayDetail(date) {
+            const modal = document.getElementById('dayDetailModal');
+            const head = document.getElementById('dayDetailHead');
+            const body = document.getElementById('dayDetailBody');
+            document.getElementById('dayDetailTitle').textContent = `賽馬日詳細 - ${date}`;
+            head.innerHTML = '';
+            body.innerHTML = '';
+
+            const sources = ['pundit','trend-30','trend-15','trend-10','trend-5','composite'];
+            const res = await fetch('/api/analysis/day-detail-stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, sources })
+            });
+            const json = await res.json();
+            if (!json.success) {
+                alert(json.error || '載入失敗');
+                return;
+            }
+            const data = json.data || [];
+
+            const trHead = document.createElement('tr');
+            ['場次','場地','途程','班次'].forEach(h => {
+                const th = document.createElement('th'); th.textContent = h; trHead.appendChild(th);
+            });
+            sources.forEach(src => {
+                ['Win','Q','T','F4'].forEach(k => {
+                    const th = document.createElement('th');
+                    th.textContent = `${src} ${k}`;
+                    trHead.appendChild(th);
+                });
+            });
+            head.appendChild(trHead);
+
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                [row.raceNo, row.venue, row.distance || '', row.class || ''].forEach(v => {
+                    const td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
+                });
+                sources.forEach(src => {
+                    const m = row.metrics[src];
+                    ['win','q','t','f4'].forEach(key => {
+                        const td = document.createElement('td');
+                        if (!m) { td.textContent = '-'; tr.appendChild(td); return; }
+                        const metric = m[key];
+                        const hitMark = metric.hit ? '✓' : '×';
+                        const color = metric.hit ? '#10b981' : '#ef4444';
+                        const rev = Math.floor(metric.revenue).toLocaleString();
+                        td.innerHTML = `<span style="color:${color}; font-weight:bold;">${hitMark}</span> / $${rev} / ${metric.roi}%`;
+                        tr.appendChild(td);
+                    });
+                });
+                body.appendChild(tr);
+            });
+
+            modal.style.display = 'flex';
+        }
+
+        function closeDayDetail() {
+            document.getElementById('dayDetailModal').style.display = 'none';
         }
 
         function updateChartMetric(metric) {
