@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>賽馬日詳細統計</title>
+    <style>
+        :root {
+            --bg-dark: #1e1e1e;
+            --bg-panel: #2d2d2d;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --accent-gold: #fbbf24;
+            --accent-green: #10b981;
+            --accent-blue: #3b82f6;
+            --accent-red: #ef4444;
+            --border-color: #404040;
+        }
+        body { font-family: 'Roboto', 'Segoe UI', Tahoma, sans-serif; padding: 20px; background-color: var(--bg-dark); color: var(--text-main); margin: 0; }
+        h1 { color: var(--accent-gold); text-align: center; margin-bottom: 20px; }
+        .nav-link { position: absolute; top: 20px; left: 20px; color: var(--accent-blue); text-decoration: none; font-size: 1.1em; }
+        .nav-link:hover { text-decoration: underline; }
+        .panel { background: var(--bg-panel); padding: 20px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 20px; }
+        .date-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+        .date-cell { padding: 8px; text-align: center; border-radius: 4px; cursor: pointer; background: #333; color: #bbb; }
+        .date-cell.has { background: #1f4632; color: #d1fae5; border: 1px solid #2f6f4c; }
+        .date-cell.selected { background: var(--accent-gold); color: #000; font-weight: bold; }
+        .source-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+        .source-btn { background: #404040; color: #ccc; border: 1px solid #555; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+        .source-btn.active { background: var(--accent-gold); color: #000; border-color: var(--accent-gold); font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; background: var(--bg-panel); border-radius: 8px; overflow: hidden; }
+        th, td { padding: 10px; text-align: center; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+        th { background: #374151; color: #e0e0e0; }
+        tr:last-child td { border-bottom: none; }
+        .pos { color: var(--accent-green); font-weight: bold; }
+        .neg { color: var(--accent-red); font-weight: bold; }
+    </style>
+</head>
+<body>
+    <a href="/" class="nav-link">← 返回首頁</a>
+    <h1>📅 賽馬日詳細統計</h1>
+
+    <div class="panel">
+        <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+            <div>
+                <label>日期</label>
+                <input type="date" id="dateInput">
+            </div>
+            <button onclick="loadDay()">載入統計</button>
+        </div>
+        <div style="margin-top:10px;">
+            <div style="margin-bottom:6px; color:#bbb;">有數據日期</div>
+            <div id="dateGrid" class="date-grid"></div>
+        </div>
+        <div style="margin-top:10px;">
+            <div style="margin-bottom:6px; color:#bbb;">數據來源</div>
+            <div id="sourceGrid" class="source-grid"></div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <table>
+            <thead id="tableHead">
+                <tr>
+                    <th>場次</th>
+                    <th>場地</th>
+                    <th>途程</th>
+                    <th>班次</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <script>
+        const standardSources = [
+            { value: 'pundit', label: '名家推介' },
+            { value: 'trend-30', label: 'T-30' },
+            { value: 'trend-15', label: 'T-15' },
+            { value: 'trend-10', label: 'T-10' },
+            { value: 'trend-5', label: 'T-5' },
+            { value: 'composite', label: '綜合熱度' }
+        ];
+        let availableDates = [];
+        let selectedSources = new Set(standardSources.map(s => s.value));
+        let selectedDate = null;
+
+        function renderSources() {
+            const g = document.getElementById('sourceGrid');
+            g.innerHTML = '';
+            standardSources.forEach(s => {
+                const btn = document.createElement('div');
+                btn.className = 'source-btn';
+                btn.textContent = s.label;
+                if (selectedSources.has(s.value)) btn.classList.add('active');
+                btn.onclick = () => {
+                    if (selectedSources.has(s.value)) selectedSources.delete(s.value);
+                    else selectedSources.add(s.value);
+                    renderSources();
+                    renderHead();
+                };
+                g.appendChild(btn);
+            });
+            renderHead();
+        }
+
+        function renderHead() {
+            const head = document.getElementById('tableHead');
+            head.innerHTML = '';
+            const tr = document.createElement('tr');
+            ['場次','場地','途程','班次'].forEach(h => {
+                const th = document.createElement('th'); th.textContent = h; tr.appendChild(th);
+            });
+            Array.from(selectedSources).forEach(src => {
+                const th = document.createElement('th'); th.textContent = `${src} Win命中/彩金/ROI`; tr.appendChild(th);
+                const th2 = document.createElement('th'); th2.textContent = `${src} Q命中/彩金/ROI`; tr.appendChild(th2);
+                const th3 = document.createElement('th'); th3.textContent = `${src} T命中/彩金/ROI`; tr.appendChild(th3);
+                const th4 = document.createElement('th'); th4.textContent = `${src} F4命中/彩金/ROI`; tr.appendChild(th4);
+            });
+            head.appendChild(tr);
+        }
+
+        function renderDates() {
+            const grid = document.getElementById('dateGrid');
+            grid.innerHTML = '';
+            availableDates.forEach(d => {
+                const cell = document.createElement('div');
+                cell.className = 'date-cell has';
+                cell.textContent = d;
+                if (selectedDate === d) cell.classList.add('selected');
+                cell.onclick = () => {
+                    selectedDate = d;
+                    document.getElementById('dateInput').value = d;
+                    renderDates();
+                };
+                grid.appendChild(cell);
+            });
+        }
+
+        async function init() {
+            try {
+                const res = await fetch('/api/analysis/available-dates');
+                const json = await res.json();
+                if (json.success) {
+                    availableDates = json.dates;
+                    renderDates();
+                    if (availableDates.length > 0) {
+                        selectedDate = availableDates[0];
+                        document.getElementById('dateInput').value = selectedDate;
+                    }
+                }
+            } catch (e) {}
+            renderSources();
+        }
+
+        async function loadDay() {
+            const date = document.getElementById('dateInput').value || selectedDate;
+            if (!date) { alert('請選擇日期'); return; }
+            const sources = Array.from(selectedSources);
+            const res = await fetch('/api/analysis/day-detail-stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ date, sources })
+            });
+            const json = await res.json();
+            if (!json.success) { alert(json.error || '錯誤'); return; }
+            const data = json.data;
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            data.forEach(row => {
+                const tr = document.createElement('tr');
+                const base = [row.raceNo, row.venue, row.distance || '', row.class || ''];
+                base.forEach(v => { const td = document.createElement('td'); td.textContent = v; tr.appendChild(td); });
+                Array.from(selectedSources).forEach(src => {
+                    const m = row.metrics[src];
+                    ['win','q','t','f4'].forEach(k => {
+                        const td = document.createElement('td');
+                        if (!m) { td.textContent = '-'; tr.appendChild(td); return; }
+                        const r = m[k];
+                        const colorClass = r.hit ? 'pos' : 'neg';
+                        td.innerHTML = `<span class="${colorClass}">${r.hit ? '✓' : '×'}</span> / $${Math.floor(r.revenue).toLocaleString()} / ${r.roi}%`;
+                        tr.appendChild(td);
+                    });
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>

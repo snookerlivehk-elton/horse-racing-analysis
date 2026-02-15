@@ -46,6 +46,84 @@ export class AnalysisService {
         return { winner, placings, winDividend };
     }
 
+    async getDayRaceStats(date: string, sources: string[]) {
+        const races = await prisma.race.findMany({
+            where: {
+                date,
+                j18Payouts: { some: {} }
+            },
+            include: {
+                j18Likes: true,
+                j18Trends: true,
+                j18Payouts: true,
+                strategyPicks: true
+            },
+            orderBy: { raceNo: 'asc' }
+        });
+        const result: any[] = [];
+        for (const race of races) {
+            const payouts = race.j18Payouts[0]?.payouts as unknown as J18PayoutItem[];
+            if (!payouts) continue;
+            const row: any = {
+                raceId: race.id,
+                raceNo: race.raceNo,
+                venue: race.venue,
+                distance: race.distance,
+                class: race.class,
+                metrics: {}
+            };
+            for (const source of sources) {
+                let picks: number[] = [];
+                if (source === 'pundit') {
+                    if (race.j18Likes[0]) picks = race.j18Likes[0].recommendations as unknown as number[];
+                } else if (source.startsWith('trend-')) {
+                    const key = source.split('-')[1];
+                    if (race.j18Trends[0]) {
+                        const trends = race.j18Trends[0].trends as unknown as Record<string, string[]>;
+                        if (trends[key]) picks = trends[key].map(Number);
+                    }
+                } else if (source === 'composite') {
+                    const scores = new Map<number, number>();
+                    const map = [6, 6, 5, 4, 2, 2];
+                    if (race.j18Likes[0]) {
+                        const arr = race.j18Likes[0].recommendations as unknown as number[];
+                        arr?.slice(0, 6).forEach((h, i) => scores.set(h, (scores.get(h) || 0) + (map[i] || 0)));
+                    }
+                    if (race.j18Trends[0]) {
+                        const trends = race.j18Trends[0].trends as unknown as Record<string, string[]>;
+                        ['30', '15', '10', '5'].forEach(k => {
+                            const arr = trends[k]?.map(Number) || [];
+                            arr.slice(0, 6).forEach((h, i) => scores.set(h, (scores.get(h) || 0) + (map[i] || 0)));
+                        });
+                    }
+                    if (scores.size > 0) picks = Array.from(scores.entries()).sort((a, b) => b[1] - a[1]).map(e => e[0]);
+                } else if (source.startsWith('strategy-')) {
+                    const id = source.split('strategy-')[1];
+                    const sp = (race.strategyPicks || []).find((s: any) => s.strategyTestId === id);
+                    if (sp) picks = sp.picks;
+                }
+                const res = this.calculateRaceRewards(payouts, picks || []);
+                const calc = (m: any) => {
+                    const net = m.revenue - m.cost;
+                    return {
+                        hit: m.hit,
+                        revenue: m.revenue,
+                        cost: m.cost,
+                        roi: m.cost > 0 ? parseFloat(((net / m.cost) * 100).toFixed(1)) : 0
+                    };
+                };
+                row.metrics[source] = {
+                    win: calc(res.win),
+                    q: calc(res.q),
+                    t: calc(res.t),
+                    f4: calc(res.f4)
+                };
+            }
+            result.push(row);
+        }
+        return result;
+    }
+
     // Helper: Calculate Rewards for a single race based on picks
     private calculateRaceRewards(payouts: J18PayoutItem[], picks: number[]) {
         const COSTS = { WIN: 20, Q: 30, T: 240, F4: 3600 };
