@@ -627,17 +627,27 @@
             body.innerHTML = '';
 
             const srcCfg = DAY_DETAIL_SOURCES.find(s => s.value === dayDetailSource) || DAY_DETAIL_SOURCES[0];
-            const label = srcCfg.label;
             const trHead = document.createElement('tr');
             const thRace = document.createElement('th');
             thRace.textContent = '場次';
             trHead.appendChild(thRace);
 
-            ['Win', 'Q', 'T', 'F4'].forEach((k, idx) => {
+            const headers = [
+                'Win (獨贏)',
+                'Q (連贏)',
+                'T (三重彩)',
+                'F4 (四重彩)',
+                'Win (Box 6)',
+                'Q (Box 6)',
+                'T (Box 6)',
+                'F4 (Box 6)'
+            ];
+
+            headers.forEach((k, idx) => {
                 const th = document.createElement('th');
-                th.textContent = `${label} ${k}`;
-                if (idx === 0) th.classList.add('section-border');
-                if (idx % 2 === 1) th.classList.add('group-alt');
+                th.textContent = k;
+                if (idx === 0 || idx === 4) th.classList.add('section-border');
+                if (idx === 2 || idx === 3 || idx === 6 || idx === 7) th.classList.add('group-alt');
                 trHead.appendChild(th);
             });
             head.appendChild(trHead);
@@ -649,7 +659,10 @@
                 tr.appendChild(tdRace);
 
                 const m = row.metrics[dayDetailSource];
-                ['win','q','t','f4'].forEach((key, idx) => {
+                const pools = ['win','q','t','f4'];
+                const poolsBox = ['win6','q6','t6','f46'];
+
+                pools.forEach((key, idx) => {
                     const td = document.createElement('td');
                     if (!m) {
                         td.textContent = '-';
@@ -661,7 +674,22 @@
                         td.innerHTML = `<span style="color:${color}; font-weight:bold;">${hitMark}</span> / $${rev}`;
                     }
                     if (idx === 0) td.classList.add('section-border');
-                    if (idx % 2 === 1) td.classList.add('group-alt');
+                    if (idx === 2 || idx === 3) td.classList.add('group-alt');
+                    tr.appendChild(td);
+                });
+
+                poolsBox.forEach((key, idx) => {
+                    const td = document.createElement('td');
+                    if (!m) {
+                        td.textContent = '-';
+                    } else {
+                        const metric = m[key];
+                        const hitMark = metric && metric.hit ? '✓' : '×';
+                        const color = metric && metric.hit ? '#10b981' : '#ef4444';
+                        td.innerHTML = `<span style="color:${color}; font-weight:bold;">${hitMark}</span>`;
+                    }
+                    if (idx === 0) td.classList.add('section-border');
+                    if (idx === 2 || idx === 3) td.classList.add('group-alt');
                     tr.appendChild(td);
                 });
                 body.appendChild(tr);

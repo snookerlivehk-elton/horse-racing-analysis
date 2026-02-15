@@ -122,7 +122,11 @@ export class AnalysisService {
                     win: calc(res.win),
                     q: calc(res.q),
                     t: calc(res.t),
-                    f4: calc(res.f4)
+                    f4: calc(res.f4),
+                    win6: { hit: res.win6.hit },
+                    q6: { hit: res.q6.hit },
+                    t6: { hit: res.t6.hit },
+                    f46: { hit: res.f46.hit }
                 };
             }
             result.push(row);
