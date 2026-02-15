@@ -294,6 +294,29 @@
             cursor: pointer;
         }
 
+        .day-source-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 4px;
+            margin-bottom: 10px;
+        }
+        .day-source-btn {
+            background: #444;
+            color: #ccc;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 0.8em;
+            cursor: pointer;
+            border: 1px solid #555;
+        }
+        .day-source-btn.active {
+            background: var(--accent-gold);
+            color: #000;
+            border-color: var(--accent-gold);
+            font-weight: bold;
+        }
+
     </style>
 </head>
 <body>
@@ -391,9 +414,10 @@
                 <div class="modal-close" onclick="closeDayDetail()">✕</div>
             </div>
             <div class="modal-body">
-                <div style="font-size:0.85em; color:var(--text-muted); margin-bottom:6px;">
-                    數據來源：名家推介、T-30、T-15、T-10、T-5、綜合熱度
+                <div style="font-size:0.85em; color:var(--text-muted);">
+                    數據來源：
                 </div>
+                <div id="daySourceBar" class="day-source-bar"></div>
                 <div class="table-container" style="margin-top:5px;">
                     <table style="min-width: 900px;">
                         <thead id="dayDetailHead"></thead>
@@ -584,60 +608,112 @@
             });
         }
 
-        async function openDayDetail(date) {
-            const modal = document.getElementById('dayDetailModal');
+        const DAY_DETAIL_SOURCES = [
+            { value: 'pundit', label: '名家推介' },
+            { value: 'trend-30', label: 'T-30' },
+            { value: 'trend-15', label: 'T-15' },
+            { value: 'trend-10', label: 'T-10' },
+            { value: 'trend-5', label: 'T-5' },
+            { value: 'composite', label: '綜合熱度' }
+        ];
+        let dayDetailActiveSources = new Set(DAY_DETAIL_SOURCES.map(s => s.value));
+        let dayDetailRows = [];
+
+        function renderDaySourceBar() {
+            const bar = document.getElementById('daySourceBar');
+            bar.innerHTML = '';
+            DAY_DETAIL_SOURCES.forEach(src => {
+                const btn = document.createElement('div');
+                btn.className = 'day-source-btn';
+                if (dayDetailActiveSources.has(src.value)) btn.classList.add('active');
+                btn.textContent = src.label;
+                btn.onclick = () => {
+                    if (dayDetailActiveSources.has(src.value)) {
+                        dayDetailActiveSources.delete(src.value);
+                    } else {
+                        dayDetailActiveSources.add(src.value);
+                    }
+                    // 至少保留一個來源
+                    if (dayDetailActiveSources.size === 0) {
+                        dayDetailActiveSources.add(src.value);
+                    }
+                    renderDaySourceBar();
+                    renderDayDetailTable();
+                };
+                bar.appendChild(btn);
+            });
+        }
+
+        function renderDayDetailTable() {
             const head = document.getElementById('dayDetailHead');
             const body = document.getElementById('dayDetailBody');
-            document.getElementById('dayDetailTitle').textContent = `賽馬日詳細 - ${date}`;
             head.innerHTML = '';
             body.innerHTML = '';
 
-            const sources = ['pundit','trend-30','trend-15','trend-10','trend-5','composite'];
+            const active = Array.from(dayDetailActiveSources);
+            const trHead = document.createElement('tr');
+            const thRace = document.createElement('th');
+            thRace.textContent = '場次';
+            trHead.appendChild(thRace);
+
+            active.forEach((src, idx) => {
+                const label = DAY_DETAIL_SOURCES.find(s => s.value === src)?.label || src;
+                ['Win', 'Q', 'T', 'F4'].forEach((k, kIdx) => {
+                    const th = document.createElement('th');
+                    th.textContent = `${label} ${k}`;
+                    if (kIdx === 0) th.classList.add('section-border');
+                    if ((idx + kIdx) % 2 === 1) th.classList.add('group-alt');
+                    trHead.appendChild(th);
+                });
+            });
+            head.appendChild(trHead);
+
+            dayDetailRows.forEach(row => {
+                const tr = document.createElement('tr');
+                const tdRace = document.createElement('td');
+                tdRace.textContent = row.raceNo;
+                tr.appendChild(tdRace);
+
+                active.forEach((src, idx) => {
+                    const m = row.metrics[src];
+                    ['win','q','t','f4'].forEach((key, kIdx) => {
+                        const td = document.createElement('td');
+                        if (!m) {
+                            td.textContent = '-';
+                        } else {
+                            const metric = m[key];
+                            const hitMark = metric.hit ? '✓' : '×';
+                            const color = metric.hit ? '#10b981' : '#ef4444';
+                            const rev = Math.floor(metric.revenue || 0).toLocaleString();
+                            td.innerHTML = `<span style="color:${color}; font-weight:bold;">${hitMark}</span> / $${rev}`;
+                        }
+                        if (kIdx === 0) td.classList.add('section-border');
+                        if ((idx + kIdx) % 2 === 1) td.classList.add('group-alt');
+                        tr.appendChild(td);
+                    });
+                });
+                body.appendChild(tr);
+            });
+        }
+
+        async function openDayDetail(date) {
+            const modal = document.getElementById('dayDetailModal');
+            document.getElementById('dayDetailTitle').textContent = `賽馬日詳細 - ${date}`;
+            renderDaySourceBar();
+
+            const allSources = DAY_DETAIL_SOURCES.map(s => s.value);
             const res = await fetch('/api/analysis/day-detail-stats', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ date, sources })
+                body: JSON.stringify({ date, sources: allSources })
             });
             const json = await res.json();
             if (!json.success) {
                 alert(json.error || '載入失敗');
                 return;
             }
-            const data = json.data || [];
-
-            const trHead = document.createElement('tr');
-            ['場次','場地','途程','班次'].forEach(h => {
-                const th = document.createElement('th'); th.textContent = h; trHead.appendChild(th);
-            });
-            sources.forEach(src => {
-                ['Win','Q','T','F4'].forEach(k => {
-                    const th = document.createElement('th');
-                    th.textContent = `${src} ${k}`;
-                    trHead.appendChild(th);
-                });
-            });
-            head.appendChild(trHead);
-
-            data.forEach(row => {
-                const tr = document.createElement('tr');
-                [row.raceNo, row.venue, row.distance || '', row.class || ''].forEach(v => {
-                    const td = document.createElement('td'); td.textContent = v; tr.appendChild(td);
-                });
-                sources.forEach(src => {
-                    const m = row.metrics[src];
-                    ['win','q','t','f4'].forEach(key => {
-                        const td = document.createElement('td');
-                        if (!m) { td.textContent = '-'; tr.appendChild(td); return; }
-                        const metric = m[key];
-                        const hitMark = metric.hit ? '✓' : '×';
-                        const color = metric.hit ? '#10b981' : '#ef4444';
-                        const rev = Math.floor(metric.revenue).toLocaleString();
-                        td.innerHTML = `<span style="color:${color}; font-weight:bold;">${hitMark}</span> / $${rev} / ${metric.roi}%`;
-                        tr.appendChild(td);
-                    });
-                });
-                body.appendChild(tr);
-            });
+            dayDetailRows = json.data || [];
+            renderDayDetailTable();
 
             modal.style.display = 'flex';
         }
